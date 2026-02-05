@@ -1,0 +1,116 @@
+USER_ROLE (Lookup Table)
+------------------------
+roleId           : int (PK)
+roleName         : String (UNIQUE) -- e.g., 'ROLE_ADMIN', 'ROLE_CUSTOMER'
+
+
+APP_USER
+--------
+userId           : String (UUID, PK)
+email            : String (NOT NULL, UNIQUE)
+passwordHash     : String (NOT NULL)
+roleId           : int (FK → USER_ROLE.roleId)
+isActive         : boolean (DEFAULT true)
+createdTimestamp : Instant NOT NULL
+
+
+REFRESH_TOKEN
+-------------
+tokenId          : String (UUID, PK)
+userId           : String (FK → APP_USER.userId)
+token            : String (NOT NULL, UNIQUE)
+expiryDate       : Instant (NOT NULL)
+revoked          : boolean (DEFAULT false)
+
+
+CUSTOMER
+--------
+customerId       : String (PK)
+userId           : String (FK → APP_USER.userId, UNIQUE, NOT NULL)
+firstName        : String
+lastName         : String
+contactNo        : String NOT NULL UNIQUE
+
+
+INVENTORY_ITEM
+--------------
+itemId           : String (PK)
+availableStock   : int NOT NULL CHECK (availableStock >= 0)
+reservedStock    : int NOT NULL CHECK (reservedStock >= 0)
+
+CHECK (availableStock >= reservedStock)
+-- Must be enforced using locking / atomic update, not DB check alone
+
+
+PRICING_CATALOG
+---------------
+itemId           : String (FK → InventoryItem.itemId)
+unitPrice        : BigDecimal NOT NULL CHECK (unitPrice >= 0)
+createdTimestamp : Instant NOT NULL
+
+PRIMARY KEY (itemId, createdTimestamp)
+-- Latest createdTimestamp = active price
+
+
+ORDER_STATUS_LOOKUP (Lookup Table)
+----------------------------------
+statusId         : int (PK)
+statusName       : String (UNIQUE) -- PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED
+
+
+ORDER
+-----
+orderId          : String (UUID, PK)
+customerId       : String (FK → Customer.customerId)
+statusId         : int (FK → ORDER_STATUS_LOOKUP.statusId)
+createdTimestamp : Instant NOT NULL
+updatedTimestamp : Instant NOT NULL
+
+
+ORDER_ITEM
+----------
+orderId          : String (PK, FK → Order.orderId)
+itemId           : String (PK, FK → InventoryItem.itemId)
+quantity         : int NOT NULL CHECK (quantity > 0)
+unitPrice        : BigDecimal NOT NULL CHECK (unitPrice >= 0)
+-- Snapshot price copied from PricingCatalog at order time
+
+PRIMARY KEY (orderId, itemId)
+
+
+RELATIONSHIPS
+-------------
+AppUser          1 → 1 Customer
+AppUser          1 → M RefreshToken
+UserRole         1 → M AppUser
+Customer         1 → M Order
+Order            1 → M OrderItem
+InventoryItem    1 → M OrderItem
+InventoryItem    1 → M PricingCatalog
+OrderStatus      1 → M Order
+
+
+BUSINESS RULES
+--------------
+- Order status transitions must follow allowed state machine
+- No status change after CANCELLED or DELIVERED
+- Inventory reservation must be atomic
+- Reserved stock must be released on order cancellation
+- OrderId must be globally unique
+- Only latest PricingCatalog row is active price
+- No order creation without active price
+- Customer must exist before order creation
+- OrderItem.itemId must exist
+- No duplicate itemId within the same order
+- Refresh tokens must be rotated or revoked on logout
+
+
+INDEXES
+-------
+- AppUser(email)
+- RefreshToken(token)
+- Order(statusId)
+- Order(createdTimestamp)
+- PricingCatalog(itemId, createdTimestamp DESC)
+- OrderItem(orderId)
+- InventoryItem(itemId)

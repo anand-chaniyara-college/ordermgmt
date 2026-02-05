@@ -1,0 +1,67 @@
+-- 1. Identity & Auth
+CREATE TABLE USER_ROLE (
+    roleId INT PRIMARY KEY,
+    roleName VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE APP_USER (
+    userId VARCHAR(36) PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    passwordHash VARCHAR(255) NOT NULL,
+    roleId INT NOT NULL,
+    isActive BOOLEAN DEFAULT TRUE,
+    createdTimestamp TIMESTAMP NOT NULL
+);
+
+CREATE TABLE REFRESH_TOKEN (
+    tokenId VARCHAR(36) PRIMARY KEY,
+    userId VARCHAR(36) NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    expiryDate TIMESTAMP NOT NULL,
+    revoked BOOLEAN DEFAULT FALSE
+);
+
+-- 2. Business Profile
+CREATE TABLE CUSTOMER (
+    customerId VARCHAR(36) PRIMARY KEY,
+    userId VARCHAR(36) NOT NULL,
+    firstName VARCHAR(100),
+    lastName VARCHAR(100),
+    contactNo VARCHAR(20) NOT NULL
+);
+
+-- 3. Inventory & Pricing
+CREATE TABLE INVENTORY_ITEM (
+    itemId VARCHAR(50) PRIMARY KEY,
+    availableStock INT NOT NULL,
+    reservedStock INT NOT NULL
+);
+
+CREATE TABLE PRICING_CATALOG (
+    itemId VARCHAR(50) NOT NULL,
+    unitPrice DECIMAL(19,4) NOT NULL,
+    createdTimestamp TIMESTAMP NOT NULL,
+    PRIMARY KEY (itemId, createdTimestamp)
+);
+
+-- 4. Orders
+CREATE TABLE ORDER_STATUS_LOOKUP (
+    statusId INT PRIMARY KEY,
+    statusName VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE ORDERS (
+    orderId VARCHAR(36) PRIMARY KEY,
+    customerId VARCHAR(36) NOT NULL,
+    statusId INT NOT NULL,
+    createdTimestamp TIMESTAMP NOT NULL,
+    updatedTimestamp TIMESTAMP NOT NULL
+);
+
+CREATE TABLE ORDER_ITEM (
+    orderId VARCHAR(36) NOT NULL,
+    itemId VARCHAR(50) NOT NULL,
+    quantity INT NOT NULL,
+    unitPrice DECIMAL(19,4) NOT NULL,
+    PRIMARY KEY (orderId, itemId)
+);
