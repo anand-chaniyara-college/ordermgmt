@@ -2,6 +2,8 @@ package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.LoginRequestDTO;
 import com.example.ordermgmt.dto.LoginResponseDTO;
+import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
+import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 import com.example.ordermgmt.dto.RegistrationRequestDTO;
 import com.example.ordermgmt.dto.RegistrationResponseDTO;
 import com.example.ordermgmt.service.AuthService;
@@ -49,5 +51,32 @@ public class AuthController {
             // 401 Unauthorized (Wrong password / User not found)
             return ResponseEntity.status(401).body(response);
         }
+    }
+
+    // REFRESH TOKEN API
+    @PostMapping("/refresh")
+    public ResponseEntity<RefreshTokenResponseDTO> refreshToken(@RequestBody RefreshTokenRequestDTO request) {
+        System.out.println(">>> [AuthController] Received Refresh Token request");
+
+        try {
+            RefreshTokenResponseDTO response = authService.refreshToken(request);
+
+            if (response.getAccessToken() == null) {
+                // Token expired
+                return ResponseEntity.status(403).body(response);
+            }
+
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(403).body(new RefreshTokenResponseDTO(null, null, null, e.getMessage()));
+        }
+    }
+
+    // LOGOUT API
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout(@RequestBody RefreshTokenRequestDTO request) {
+        System.out.println(">>> [AuthController] Received Logout request");
+        authService.logoutUser(request);
+        return ResponseEntity.ok("Logged out successfully");
     }
 }

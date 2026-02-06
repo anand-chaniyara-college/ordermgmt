@@ -21,9 +21,13 @@ public class LoginResponseDTO {
     // Simple message for the user ("Login successful")
     private String message;
 
+    // The long-lived token used to get new access tokens
+    private String refreshToken;
+
     // Custom constructor to make it easier to create responses in the Service
-    public LoginResponseDTO(String accessToken, String role, String message) {
+    public LoginResponseDTO(String accessToken, String refreshToken, String role, String message) {
         this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
         this.role = role;
         this.message = message;
     }
