@@ -1,0 +1,8 @@
+POST auth/register
+    {
+        "email": "test.customer@example.com",
+        "password": "testcust@1234",
+        "roleName": "CUSTOMER"
+    }
+
+    
