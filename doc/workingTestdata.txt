@@ -5,4 +5,21 @@ POST auth/register
         "roleName": "CUSTOMER"
     }
 
+    {
+        "email": "test.admin@example.com",
+        "password": "testadmin@1234",
+        "roleName": "ADMIN"
+    }
+
+    POST auth/login
+    {
+        "email": "test.customer@example.com",
+        "password": "testcust@1234"
+    }
+
+    {
+        "email": "test.admin@example.com",
+        "password": "testadmin@1234"
+    }
+
     
