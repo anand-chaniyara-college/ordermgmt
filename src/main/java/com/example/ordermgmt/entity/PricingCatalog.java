@@ -10,6 +10,7 @@ import lombok.EqualsAndHashCode;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import jakarta.validation.constraints.PositiveOrZero;
 
 @Getter
 @Setter
@@ -27,6 +28,7 @@ public class PricingCatalog {
     @JoinColumn(name = "itemid", referencedColumnName = "itemid")
     private InventoryItem inventoryItem;
 
+    @PositiveOrZero(message = "Unit price must be non-negative")
     @Column(name = "unitprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal unitPrice;
 

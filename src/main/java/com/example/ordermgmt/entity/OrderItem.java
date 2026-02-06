@@ -8,6 +8,8 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 
 @Getter
 @Setter
@@ -30,9 +32,11 @@ public class OrderItem {
     @JoinColumn(name = "itemid", nullable = false)
     private InventoryItem inventoryItem;
 
+    @Positive(message = "Quantity must be positive")
     @Column(name = "quantity", nullable = false)
     private Integer quantity;
 
+    @PositiveOrZero(message = "Unit price must be non-negative")
     @Column(name = "unitprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal unitPrice;
 

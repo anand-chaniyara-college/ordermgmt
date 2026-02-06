@@ -15,14 +15,18 @@ import lombok.ToString;
 @NoArgsConstructor
 @AllArgsConstructor
 @ToString
+// @Entity: This class maps to a database table
 @Entity
+// @Table: Maps to the "USER_ROLE" table in database
 @Table(name = "USER_ROLE", schema = "ordermgmt")
 public class UserRole {
 
+    // Simple Primary Key
     @Id
     @Column(name = "roleid")
     private Integer roleId;
 
+    // The name of the role (e.g., "CUSTOMER", "ADMIN")
     @Column(name = "rolename", nullable = false, length = 50, unique = true)
     private String roleName;
 }
