@@ -7,8 +7,17 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import com.example.ordermgmt.security.JwtAuthFilter;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
 @Configuration
 public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
 
     // Bean for password encryption
     // BCrypt is a strong hashing function widely used for passwords
@@ -34,8 +43,14 @@ public class SecurityConfig {
                         // etc)
                         .requestMatchers("/api/auth/**").permitAll()
 
+                        // Only ADMIN can access /api/admin/**
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN")
+
                         // Require authentication for any other request
-                        .anyRequest().authenticated());
+                        .anyRequest().authenticated())
+
+                // Add JWT Filter before the standard Username/Password filter
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

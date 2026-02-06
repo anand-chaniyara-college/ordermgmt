@@ -1,5 +1,7 @@
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\config\SecurityConfig.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\controller\AuthController.java
+C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\controller\InventoryController.java
+C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\dto\InventoryItemDTO.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\dto\LoginRequestDTO.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\dto\LoginResponseDTO.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\dto\RefreshTokenRequestDTO.java
@@ -17,8 +19,12 @@ C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\en
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\entity\UserRole.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\OrdermgmtApplication.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\repository\AppUserRepository.java
+C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\repository\InventoryItemRepository.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\repository\RefreshTokenRepository.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\repository\UserRoleRepository.java
+C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\security\JwtAuthFilter.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\security\JwtUtil.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\service\AuthService.java
 C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\service\impl\AuthServiceImpl.java
+C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\service\impl\InventoryServiceImpl.java
+C:\Users\anand\Documents\Azilen\ordermgmt\src\main\java\com\example\ordermgmt\service\InventoryService.java

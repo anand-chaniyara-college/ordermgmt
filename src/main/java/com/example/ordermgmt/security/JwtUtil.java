@@ -33,10 +33,45 @@ public class JwtUtil {
 
         return Jwts.builder()
                 .subject(email) // Who is this token for?
-                .claim("role", role) // What allows do they have?
+                .claim("role", role) // What allow do they have?
                 .issuedAt(new Date()) // When was it created?
                 .expiration(new Date(System.currentTimeMillis() + expiryMillis)) // When does it die?
                 .signWith(key) // SIGN it with our secret key
                 .compact(); // Compress into a string
+    }
+
+    // ---------------- NEW METHODS FOR VALIDATING TOKENS ----------------
+
+    // 1. Get Username (Email) from Token
+    public String extractUsername(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getSubject();
+    }
+
+    // 2. Get Role from Token
+    public String extractRole(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("role", String.class);
+    }
+
+    // 3. Check if Token is Valid
+    public boolean validateToken(String token) {
+        try {
+            Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token);
+            return true; // No error = Valid
+        } catch (Exception e) {
+            return false; // Error = Invalid/Expired
+        }
     }
 }
