@@ -28,6 +28,20 @@ public class InventoryController {
         return ResponseEntity.ok(inventoryService.getAllInventory());
     }
 
+    // Get single inventory item
+    // Endpoint: GET /api/admin/inventory/{itemId}
+    @GetMapping("/{itemId}")
+    public ResponseEntity<InventoryItemDTO> getInventoryItem(@PathVariable String itemId) {
+        System.out.println(">>> [InventoryController] Received request to get item: " + itemId);
+
+        InventoryItemDTO item = inventoryService.getInventoryItem(itemId);
+
+        if (item == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(item);
+    }
+
     // Add a new inventory item
     // Endpoint: POST /api/admin/inventory
     // Requires JSON body: { "itemId": "...", "availableStock": 10, ... }

@@ -70,6 +70,18 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    public InventoryItemDTO getInventoryItem(String itemId) {
+        System.out.println("  >>> [InventoryServiceImpl] Fetching single inventory item: " + itemId);
+
+        // 1. Find by ID
+        // 2. Map Entity -> DTO if present
+        // 3. Or return null (Controller handles 404)
+        return inventoryItemRepository.findById(itemId)
+                .map(this::convertToDTO)
+                .orElse(null);
+    }
+
+    @Override
     public String deleteInventoryItem(String itemId) {
         System.out.println("  >>> [InventoryServiceImpl] Deleting inventory item: " + itemId);
 

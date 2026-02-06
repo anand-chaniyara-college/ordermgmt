@@ -13,6 +13,9 @@ public interface InventoryService {
     // Admin: Update an existing inventory item
     String updateInventoryItem(String itemId, InventoryItemDTO item);
 
+    // Admin: Get a single inventory item by ID
+    InventoryItemDTO getInventoryItem(String itemId);
+
     // Admin: Delete an inventory item
     String deleteInventoryItem(String itemId);
 }
