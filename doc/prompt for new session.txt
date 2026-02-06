@@ -1,0 +1,31 @@
+I am building an Order Management System ("ordermgmt") using Spring Boot 3, Java 21, and MySQL. I need you to continue development while strictly following the existing coding style and architecture.
+
+### Project Context & Progress:
+1.  **Architecture:**
+    *   Controller -> Service (Interface/Impl) -> Repository (JPA) -> Entity.
+    *   DTOs are used for all API inputs/outputs.
+    *   Global Exception Handling is not fully set up yet, using `try-catch` or basic returns for now.
+
+2.  **Authentication Module (Completed):**
+    *   **JWT Implementation:** Using `jjwt` library (0.12.5). Validates tokens via [JwtAuthFilter](cci:2://file:///c:/Users/anand/Documents/Azilen/ordermgmt/src/main/java/com/example/ordermgmt/security/JwtAuthFilter.java:15:0-61:1).
+    *   **Endpoints:**
+        *   `POST /api/auth/register` (Creates AppUser + UserRole).
+        *   `POST /api/auth/login` (Returns AccessToken + RefreshToken).
+        *   `POST /api/auth/refresh` (Rotates AccessToken).
+        *   `POST /api/auth/logout` (Revokes RefreshToken in DB).
+    *   **Security:** [SecurityConfig](cci:2://file:///c:/Users/anand/Documents/Azilen/ordermgmt/src/main/java/com/example/ordermgmt/config/SecurityConfig.java:12:0-56:1) permits `/api/auth/**` but locks everything else.
+
+3.  **Inventory Module (Admin Only - Completed):**
+    *   **Entity:** [InventoryItem](cci:2://file:///c:/Users/anand/Documents/Azilen/ordermgmt/src/main/java/com/example/ordermgmt/entity/InventoryItem.java:13:0-40:1) (itemId, availableStock, reservedStock).
+    *   **Endpoints:** `GET`, `POST`, `PUT`, `DELETE` at `/api/admin/inventory`.
+    *   **Security:** Protected by `.requestMatchers("/api/admin/**").hasAuthority("ADMIN")`.
+    *   **DTO Style:** Uses a single [InventoryItemDTO](cci:2://file:///c:/Users/anand/Documents/Azilen/ordermgmt/src/main/java/com/example/ordermgmt/dto/InventoryItemDTO.java:6:0-20:1) for both request and response (Resource-based pattern).
+
+### Coding Standards (CRITICAL):
+*   **Comments:** Use step-by-step comments in Service implementations (e.g., `// 1. Fetch user`, `// 2. Validate`).
+*   **Logs:** Use `System.out.println("  >>> [Service] ...")` for simple debugging visibility.
+*   **DTOs:** Use Lombok (`@Data`, `@AllArgsConstructor`, `@NoArgsConstructor`).
+*   **Repositories:** Standard `JpaRepository`.
+
+### Current Task:
+[INSERT YOUR NEXT GOAL HERE, e.g., "I need to implement the Customer Profile API so users can save their personal details linked to their account."]
