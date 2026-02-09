@@ -29,3 +29,15 @@ target/
 /dist/
 /nbdist/
 /.nb-gradle/
+
+### Security & Sensitivity (per Best Practices) ###
+.env
+*.pem
+node_modules/
+
+### logs ###
+*.log
+
+### OS ###
+.DS_Store
+Thumbs.db
