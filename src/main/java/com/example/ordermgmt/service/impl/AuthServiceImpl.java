@@ -12,6 +12,8 @@ import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.AuthService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -21,9 +23,11 @@ import java.util.UUID;
 @Service
 public class AuthServiceImpl implements AuthService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
-    private final com.example.ordermgmt.repository.RefreshTokenRepository refreshTokenRepository; // New Repo
+    private final com.example.ordermgmt.repository.RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -41,20 +45,19 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public String registerUser(RegistrationRequestDTO request) {
-        System.out.println("  >>> [AuthServiceImpl] Processing subscription logic...");
+        logger.info("Processing registration for email: {}", request.getEmail());
 
-        // 1. Check Email
         if (appUserRepository.findByEmail(request.getEmail()).isPresent()) {
+            logger.warn("Registration failed: Email already exists - {}", request.getEmail());
             return "Email already exists";
         }
 
-        // 2. Check Role
         UserRole role = userRoleRepository.findByRoleName(request.getRoleName()).orElse(null);
         if (role == null) {
+            logger.warn("Registration failed: Role not found - {}", request.getRoleName());
             return "Role not found";
         }
 
-        // 3. Create User
         AppUser newUser = new AppUser();
         newUser.setUserId(UUID.randomUUID().toString());
         newUser.setEmail(request.getEmail());
@@ -63,84 +66,73 @@ public class AuthServiceImpl implements AuthService {
         newUser.setIsActive(true);
         newUser.setCreatedTimestamp(LocalDateTime.now());
 
-        // 4. Save
         appUserRepository.save(newUser);
+        logger.info("User registered successfully: {}", request.getEmail());
         return "Registration successful";
     }
 
     @Override
     public LoginResponseDTO loginUser(LoginRequestDTO request) {
-        System.out.println("  >>> [AuthServiceImpl] Processing login logic for: " + request.getEmail());
+        logger.info("Processing login for email: {}", request.getEmail());
 
-        // Step 1: Check if User exists in Database
-        // We use .orElse(null) to handle the case where email is not found gracefully
         AppUser user = appUserRepository.findByEmail(request.getEmail()).orElse(null);
         if (user == null) {
+            logger.warn("Login failed: User not found - {}", request.getEmail());
             return new LoginResponseDTO(null, null, null, "User not found");
         }
 
-        // Step 2: Validate Password
-        // We MUST use passwordEncoder.matches() because the DB has the HASHED version.
-        // We cannot just compare strings (request.getPassword().equals(dbHash) would
-        // FAIL)
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            logger.warn("Login failed: Invalid credentials - {}", request.getEmail());
             return new LoginResponseDTO(null, null, null, "Invalid credentials");
         }
 
-        // Step 3: Check if Active
-        // Security check to ensure banned/inactive users cannot log in
         if (!Boolean.TRUE.equals(user.getIsActive())) {
+            logger.warn("Login failed: User inactive - {}", request.getEmail());
             return new LoginResponseDTO(null, null, null, "User is inactive");
         }
 
-        // Step 4: Generate JWT Token (Access Token)
         String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
-
-        // Step 5: Generate & Save Refresh Token
         RefreshToken refreshToken = createRefreshToken(user);
 
-        System.out.println("  >>> [AuthServiceImpl] Login successful. Associated Tokens generated.");
+        logger.info("Login successful for user: {}", request.getEmail());
 
-        // Return the tokens + role to the controller
         return new LoginResponseDTO(accessToken, refreshToken.getToken(), user.getRole().getRoleName(),
                 "Login successful");
     }
 
     @Override
     public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request) {
-        System.out.println("  >>> [AuthServiceImpl] Processing Refresh Token request...");
+        logger.info("Processing refresh token request");
 
         String requestToken = request.getRefreshToken();
 
-        // 1. Find Token in DB
         return refreshTokenRepository.findByToken(requestToken)
                 .map(token -> {
-                    // 2. Check Expiry
                     if (token.getExpiryDate().isBefore(java.time.Instant.now())) {
-                        System.out.println("    >>> Token Expired!");
-                        // Cannot refresh, return error (in real app, throw exception)
+                        logger.warn("Refresh token expired");
                         return new RefreshTokenResponseDTO(null, null, "Bearer",
                                 "Refresh token was expired. Please make a new signin request");
                     }
 
-                    // 3. Generate NEW Access Token
                     AppUser user = token.getAppUser();
                     String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
-                    System.out.println("    >>> New Access Token generated.");
+                    logger.info("Access token refreshed successfully for user: {}", user.getEmail());
                     return new RefreshTokenResponseDTO(newAccessToken, requestToken, "Bearer",
                             "Token refreshed successfully");
                 })
-                .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));
+                .orElseThrow(() -> {
+                    logger.error("Refresh token not found in database");
+                    return new RuntimeException("Refresh token is not in database!");
+                });
     }
 
-    // Helper method to create and save a Refresh Token
     private RefreshToken createRefreshToken(AppUser user) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setTokenId(UUID.randomUUID().toString());
         refreshToken.setAppUser(user);
         refreshToken.setExpiryDate(java.time.Instant.now().plusMillis(1000L * 60 * 60 * 24 * 30)); // 30 Days
-        refreshToken.setToken(UUID.randomUUID().toString()); // Secure Random String
+        refreshToken.setToken(UUID.randomUUID().toString());
         refreshToken.setRevoked(false);
 
         return refreshTokenRepository.save(refreshToken);
@@ -148,17 +140,14 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public String logoutUser(RefreshTokenRequestDTO request) {
-        System.out.println("  >>> [AuthServiceImpl] Processing Logout request...");
+        logger.info("Processing logout request");
 
         String requestToken = request.getRefreshToken();
 
-        // Find and "Revoke" the token from DB
         refreshTokenRepository.findByToken(requestToken).ifPresent(token -> {
-            // We don't delete it, we just mark it as revoked (Safety/Audit reasons)
-            // Or you COULD delete it: refreshTokenRepository.delete(token);
             token.setRevoked(true);
             refreshTokenRepository.save(token);
-            System.out.println("    >>> Refresh Token Revoked.");
+            logger.info("Refresh token revoked");
         });
 
         return "Logout successful";

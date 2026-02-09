@@ -4,6 +4,8 @@ import com.example.ordermgmt.dto.InventoryItemDTO;
 import com.example.ordermgmt.entity.InventoryItem;
 import com.example.ordermgmt.repository.InventoryItemRepository;
 import com.example.ordermgmt.service.InventoryService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.stream.Collectors;
 @Service
 public class InventoryServiceImpl implements InventoryService {
 
+    private static final Logger logger = LoggerFactory.getLogger(InventoryServiceImpl.class);
     private final InventoryItemRepository inventoryItemRepository;
 
     public InventoryServiceImpl(InventoryItemRepository inventoryItemRepository) {
@@ -20,12 +23,10 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public List<InventoryItemDTO> getAllInventory() {
-        System.out.println("  >>> [InventoryServiceImpl] Fetching all inventory items...");
+        logger.info("Fetching all inventory items");
 
-        // 1. Fetch all 'Entity' objects from Database
         List<InventoryItem> entities = inventoryItemRepository.findAll();
 
-        // 2. Convert them to 'DTO' objects for the API response
         return entities.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
@@ -33,49 +34,42 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public String addInventoryItem(InventoryItemDTO itemDTO) {
-        System.out.println("  >>> [InventoryServiceImpl] Adding new inventory item: " + itemDTO.getItemId());
+        logger.info("Adding new inventory item: {}", itemDTO.getItemId());
 
-        // 1. Check if ID already exists to prevent overwriting
         if (inventoryItemRepository.existsById(itemDTO.getItemId())) {
+            logger.warn("Item already exists: {}", itemDTO.getItemId());
             return "Item ID already exists";
         }
 
-        // 2. Convert DTO (API Data) to Entity (DB Data)
         InventoryItem item = convertToEntity(itemDTO);
-
-        // 3. Save to Database
         inventoryItemRepository.save(item);
 
+        logger.info("Item added successfully: {}", itemDTO.getItemId());
         return "Item added successfully";
     }
 
     @Override
     public String updateInventoryItem(String itemId, InventoryItemDTO itemDTO) {
-        System.out.println("  >>> [InventoryServiceImpl] Updating inventory item: " + itemId);
+        logger.info("Updating inventory item: {}", itemId);
 
-        // 1. Find the existing item
-        // .map() here works like "If Found, do this..."
         return inventoryItemRepository.findById(itemId).map(existingItem -> {
-
-            // 2. Update the fields
             existingItem.setAvailableStock(itemDTO.getAvailableStock());
             existingItem.setReservedStock(itemDTO.getReservedStock());
 
-            // 3. Save changes back to Database
             inventoryItemRepository.save(existingItem);
-
+            logger.info("Item updated successfully: {}", itemId);
             return "Item updated successfully";
 
-        }).orElse("Item not found"); // If NOT found
+        }).orElseGet(() -> {
+            logger.warn("Item not found for update: {}", itemId);
+            return "Item not found";
+        });
     }
 
     @Override
     public InventoryItemDTO getInventoryItem(String itemId) {
-        System.out.println("  >>> [InventoryServiceImpl] Fetching single inventory item: " + itemId);
+        logger.info("Fetching single inventory item: {}", itemId);
 
-        // 1. Find by ID
-        // 2. Map Entity -> DTO if present
-        // 3. Or return null (Controller handles 404)
         return inventoryItemRepository.findById(itemId)
                 .map(this::convertToDTO)
                 .orElse(null);
@@ -83,19 +77,19 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     public String deleteInventoryItem(String itemId) {
-        System.out.println("  >>> [InventoryServiceImpl] Deleting inventory item: " + itemId);
+        logger.info("Deleting inventory item: {}", itemId);
 
-        // 1. Check existence
         if (inventoryItemRepository.existsById(itemId)) {
-            // 2. Delete
             inventoryItemRepository.deleteById(itemId);
+            logger.info("Item deleted successfully: {}", itemId);
             return "Item deleted successfully";
         } else {
+            logger.warn("Item not found for deletion: {}", itemId);
             return "Item not found";
         }
     }
 
-    // Helper methods to convert between DTO and Entity
+    // Helper methods
     private InventoryItemDTO convertToDTO(InventoryItem item) {
         return new InventoryItemDTO(item.getItemId(), item.getAvailableStock(), item.getReservedStock());
     }

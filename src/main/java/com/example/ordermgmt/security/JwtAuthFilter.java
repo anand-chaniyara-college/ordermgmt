@@ -26,37 +26,26 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // 1. Get the Authorization Header
         String authHeader = request.getHeader("Authorization");
 
-        // 2. Check if it exists and starts with "Bearer "
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7); // Remove "Bearer " prefix
+            String token = authHeader.substring(7);
 
-            // 3. Validate Token
             if (jwtUtil.validateToken(token)) {
-
-                // 4. Extract User Info
                 String email = jwtUtil.extractUsername(token);
                 String role = jwtUtil.extractRole(token);
 
-                // 5. Create Authentication Object
-                // We add the role to the authorities list (Spring Security needs this to check
-                // .hasAuthority("ADMIN"))
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
 
                 UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                         email,
                         null,
-                        Collections.singletonList(authority) // List of roles
-                );
+                        Collections.singletonList(authority));
 
-                // 6. Set the Security Context (Logs the user in for this request)
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         }
 
-        // 7. Continue the Filter Chain (let the request proceed to the Controller)
         filterChain.doFilter(request, response);
     }
 }

@@ -8,6 +8,5 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class RefreshTokenRequestDTO {
-    // The refresh token string that the client sends
     private String refreshToken;
 }

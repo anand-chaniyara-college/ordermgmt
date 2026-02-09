@@ -6,7 +6,4 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, String> {
-    // This interface gives us standard CRUD operations for the Inventory table
-    // Methods provided automatically: findAll(), findById(), save(), deleteById(),
-    // etc.
 }
