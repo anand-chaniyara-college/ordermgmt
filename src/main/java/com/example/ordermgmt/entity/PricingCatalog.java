@@ -40,7 +40,7 @@ public class PricingCatalog {
         @Column(name = "itemid", length = 50)
         private String itemId;
 
-        @Column(name = "createdtimestamp")
+        @Column(name = "createdtimestamp", columnDefinition = "TIMESTAMP(0)")
         private LocalDateTime createdTimestamp;
     }
 }
