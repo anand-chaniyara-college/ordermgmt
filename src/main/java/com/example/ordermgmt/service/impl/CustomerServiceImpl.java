@@ -62,6 +62,7 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setFirstName(profileDTO.getFirstName());
         customer.setLastName(profileDTO.getLastName());
         customer.setContactNo(profileDTO.getContactNo());
+        customer.setAddress(profileDTO.getAddress());
 
         customerRepository.save(customer);
 
@@ -74,6 +75,7 @@ public class CustomerServiceImpl implements CustomerService {
                 customer.getFirstName(),
                 customer.getLastName(),
                 customer.getContactNo(),
+                customer.getAddress(),
                 customer.getAppUser().getEmail());
     }
 }

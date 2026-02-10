@@ -23,6 +23,9 @@ public class InventoryItem {
     @Column(name = "itemid", length = 50)
     private String itemId;
 
+    @Column(name = "itemname", length = 100)
+    private String itemName;
+
     @Min(value = 0, message = "Available stock must be non-negative")
     @Column(name = "availablestock", nullable = false)
     private Integer availableStock;

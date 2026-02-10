@@ -43,7 +43,7 @@ public class ProductServiceImpl implements ProductService {
                             .map(PricingCatalog::getUnitPrice)
                             .orElse(BigDecimal.ZERO);
 
-                    return new ProductDTO(item.getItemId(), price, item.getAvailableStock());
+                    return new ProductDTO(item.getItemId(), item.getItemName(), price, item.getAvailableStock());
                 })
                 .collect(Collectors.toList());
 

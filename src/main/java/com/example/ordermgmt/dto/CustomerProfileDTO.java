@@ -11,5 +11,6 @@ public class CustomerProfileDTO {
     private String firstName;
     private String lastName;
     private String contactNo;
-    private String email; // Included for reading, but usually not updatable via the same profile endpoint
+    private String address;
+    private String email;
 }

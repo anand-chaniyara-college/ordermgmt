@@ -53,6 +53,7 @@ public class InventoryServiceImpl implements InventoryService {
         logger.info("Updating inventory item: {}", itemId);
 
         return inventoryItemRepository.findById(itemId).map(existingItem -> {
+            existingItem.setItemName(itemDTO.getItemName());
             existingItem.setAvailableStock(itemDTO.getAvailableStock());
             existingItem.setReservedStock(itemDTO.getReservedStock());
 
@@ -91,10 +92,11 @@ public class InventoryServiceImpl implements InventoryService {
 
     // Helper methods
     private InventoryItemDTO convertToDTO(InventoryItem item) {
-        return new InventoryItemDTO(item.getItemId(), item.getAvailableStock(), item.getReservedStock());
+        return new InventoryItemDTO(item.getItemId(), item.getItemName(), item.getAvailableStock(),
+                item.getReservedStock());
     }
 
     private InventoryItem convertToEntity(InventoryItemDTO dto) {
-        return new InventoryItem(dto.getItemId(), dto.getAvailableStock(), dto.getReservedStock());
+        return new InventoryItem(dto.getItemId(), dto.getItemName(), dto.getAvailableStock(), dto.getReservedStock());
     }
 }

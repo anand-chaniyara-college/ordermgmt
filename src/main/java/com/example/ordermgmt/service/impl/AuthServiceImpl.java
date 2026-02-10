@@ -27,17 +27,20 @@ public class AuthServiceImpl implements AuthService {
 
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
+    private final com.example.ordermgmt.repository.CustomerRepository customerRepository;
     private final com.example.ordermgmt.repository.RefreshTokenRepository refreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     public AuthServiceImpl(AppUserRepository appUserRepository,
             UserRoleRepository userRoleRepository,
+            com.example.ordermgmt.repository.CustomerRepository customerRepository,
             com.example.ordermgmt.repository.RefreshTokenRepository refreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
+        this.customerRepository = customerRepository;
         this.refreshTokenRepository = refreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
@@ -67,6 +70,17 @@ public class AuthServiceImpl implements AuthService {
         newUser.setCreatedTimestamp(LocalDateTime.now());
 
         appUserRepository.save(newUser);
+
+        // Create an empty customer profile for CUSTOMER role
+        if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
+            com.example.ordermgmt.entity.Customer customer = new com.example.ordermgmt.entity.Customer();
+            customer.setCustomerId(UUID.randomUUID().toString());
+            customer.setAppUser(newUser);
+            // Personal details will be updated later via profile update API
+            customerRepository.save(customer);
+            logger.info("Empty customer profile created for: {}", request.getEmail());
+        }
+
         logger.info("User registered successfully: {}", request.getEmail());
         return "Registration successful";
     }

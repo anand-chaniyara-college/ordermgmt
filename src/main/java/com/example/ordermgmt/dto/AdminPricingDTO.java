@@ -12,11 +12,9 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class AdminPricingDTO {
     private String itemId;
+    private String itemName;
     private BigDecimal unitPrice;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime effectiveFrom; // Maps to createdTimestamp (The one to find)
-
-    @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd HH:mm:ss")
-    private LocalDateTime newEffectiveFrom; // Optional: The new timestamp to change to
+    private LocalDateTime effectiveFrom; // Maps to createdTimestamp
 }

@@ -28,6 +28,9 @@ public class Customer {
     @Column(name = "lastname", length = 100)
     private String lastName;
 
-    @Column(name = "contactno", nullable = false, length = 20, unique = true)
+    @Column(name = "contactno", nullable = true, length = 20, unique = true)
     private String contactNo;
+
+    @Column(name = "address", length = 255)
+    private String address;
 }

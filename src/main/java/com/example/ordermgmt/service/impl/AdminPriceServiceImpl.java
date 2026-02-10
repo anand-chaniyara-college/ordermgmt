@@ -64,51 +64,21 @@ public class AdminPriceServiceImpl implements AdminPriceService {
     @Override
     @Transactional
     public String updatePrice(AdminPricingDTO pricingDTO) {
-        PricingCatalog target;
+        PricingCatalog target = pricingCatalogRepository
+                .findFirstByIdItemIdOrderByIdCreatedTimestampDesc(pricingDTO.getItemId())
+                .orElseThrow(() -> new RuntimeException(
+                        "No existing price record found for item: " + pricingDTO.getItemId()));
 
-        // CASE 1: No effectiveFrom -> Find the LATEST record
-        if (pricingDTO.getEffectiveFrom() == null) {
-            logger.info("Admin: Updating LATEST price for item: {}", pricingDTO.getItemId());
-            target = pricingCatalogRepository.findFirstByIdItemIdOrderByIdCreatedTimestampDesc(pricingDTO.getItemId())
-                    .orElseThrow(() -> new RuntimeException(
-                            "No existing price record found for item: " + pricingDTO.getItemId()));
-        }
-        // CASE 2: effectiveFrom provided -> Find that SPECIFIC record
-        else {
-            LocalDateTime oldTime = pricingDTO.getEffectiveFrom().truncatedTo(ChronoUnit.SECONDS);
-            logger.info("Admin: Updating specific price for item: {} at {}", pricingDTO.getItemId(), oldTime);
-            target = pricingCatalogRepository
-                    .findById(new PricingCatalog.PricingCatalogId(pricingDTO.getItemId(), oldTime))
-                    .orElseThrow(() -> new RuntimeException("No price record found for item " + pricingDTO.getItemId()
-                            + " at " + oldTime.format(formatter)));
-        }
-
-        // Handle Time Update (Move record)
-        if (pricingDTO.getNewEffectiveFrom() != null) {
-            LocalDateTime newTime = pricingDTO.getNewEffectiveFrom().truncatedTo(ChronoUnit.SECONDS);
-
-            // Re-create as Primary Keys are immutable
-            PricingCatalog newRecord = new PricingCatalog();
-            newRecord.setId(new PricingCatalog.PricingCatalogId(pricingDTO.getItemId(), newTime));
-            newRecord.setInventoryItem(target.getInventoryItem());
-            newRecord.setUnitPrice(pricingDTO.getUnitPrice());
-
-            pricingCatalogRepository.delete(target);
-            pricingCatalogRepository.save(newRecord);
-            return "Price record moved and updated successfully to " + newTime.format(formatter);
-        }
-
-        // Standard update
         target.setUnitPrice(pricingDTO.getUnitPrice());
         pricingCatalogRepository.save(target);
-        return "Price updated successfully for entry: " + target.getId().getCreatedTimestamp().format(formatter);
+        return "Price updated successfully for item: " + pricingDTO.getItemId();
     }
 
     private AdminPricingDTO convertToDTO(PricingCatalog pricing) {
         return new AdminPricingDTO(
                 pricing.getId().getItemId(),
+                pricing.getInventoryItem().getItemName(),
                 pricing.getUnitPrice(),
-                pricing.getId().getCreatedTimestamp(),
-                null);
+                pricing.getId().getCreatedTimestamp());
     }
 }
