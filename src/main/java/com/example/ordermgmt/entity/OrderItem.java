@@ -29,7 +29,7 @@ public class OrderItem {
 
     @MapsId("itemId")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "itemid", nullable = false)
+    @JoinColumn(name = "itemid", referencedColumnName = "itemid", nullable = false, foreignKey = @ForeignKey(name = "FK_ORDERITEM_ITEM", foreignKeyDefinition = "FOREIGN KEY (itemid) REFERENCES ordermgmt.INVENTORY_ITEM(itemid) ON UPDATE CASCADE"))
     private InventoryItem inventoryItem;
 
     @Positive(message = "Quantity must be positive")

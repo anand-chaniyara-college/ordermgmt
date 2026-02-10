@@ -1,9 +1,6 @@
 package com.example.ordermgmt.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
@@ -33,6 +30,9 @@ public class InventoryItem {
     @Min(value = 0, message = "Reserved stock must be non-negative")
     @Column(name = "reservedstock", nullable = false)
     private Integer reservedStock;
+
+    @OneToMany(mappedBy = "inventoryItem")
+    private java.util.List<PricingCatalog> pricingHistory;
 
     @AssertTrue(message = "Available stock must be greater than or equal to reserved stock")
     public boolean isStockConsistent() {

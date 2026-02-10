@@ -39,7 +39,7 @@ public class ProductServiceImpl implements ProductService {
                 .filter(item -> item.getAvailableStock() != null && item.getAvailableStock() > 0)
                 .map(item -> {
                     BigDecimal price = pricingCatalogRepository
-                            .findFirstByIdItemIdOrderByIdCreatedTimestampDesc(item.getItemId())
+                            .findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(item.getItemId())
                             .map(PricingCatalog::getUnitPrice)
                             .orElse(BigDecimal.ZERO);
 

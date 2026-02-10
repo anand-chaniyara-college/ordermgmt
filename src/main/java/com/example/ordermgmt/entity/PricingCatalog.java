@@ -5,12 +5,10 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import jakarta.validation.constraints.PositiveOrZero;
+import org.hibernate.annotations.GenericGenerator;
 
 @Getter
 @Setter
@@ -20,27 +18,20 @@ import jakarta.validation.constraints.PositiveOrZero;
 @Table(name = "PRICING_CATALOG", schema = "ordermgmt")
 public class PricingCatalog {
 
-    @EmbeddedId
-    private PricingCatalogId id;
+    @Id
+    @GeneratedValue(generator = "system-uuid")
+    @GenericGenerator(name = "system-uuid", strategy = "uuid2")
+    @Column(name = "uuid", length = 36)
+    private String uuid;
 
-    @MapsId("itemId")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "itemid", referencedColumnName = "itemid")
+    @JoinColumn(name = "itemid", referencedColumnName = "itemid", nullable = false, foreignKey = @ForeignKey(name = "FK_PRICING_ITEM", foreignKeyDefinition = "FOREIGN KEY (itemid) REFERENCES ordermgmt.INVENTORY_ITEM(itemid) ON UPDATE CASCADE"))
     private InventoryItem inventoryItem;
 
     @PositiveOrZero(message = "Unit price must be non-negative")
     @Column(name = "unitprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal unitPrice;
 
-    @Data
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @Embeddable
-    public static class PricingCatalogId implements Serializable {
-        @Column(name = "itemid", length = 50)
-        private String itemId;
-
-        @Column(name = "createdtimestamp", columnDefinition = "TIMESTAMP(0)")
-        private LocalDateTime createdTimestamp;
-    }
+    @Column(name = "createdtimestamp", nullable = false, columnDefinition = "TIMESTAMP(0)")
+    private LocalDateTime createdTimestamp;
 }

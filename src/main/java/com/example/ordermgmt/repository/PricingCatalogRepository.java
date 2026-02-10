@@ -8,12 +8,11 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface PricingCatalogRepository extends JpaRepository<PricingCatalog, PricingCatalog.PricingCatalogId> {
+public interface PricingCatalogRepository extends JpaRepository<PricingCatalog, String> {
 
-    // Corrected naming: Since createdTimestamp is inside the 'id'
-    // Finds the current/latest price
-    Optional<PricingCatalog> findFirstByIdItemIdOrderByIdCreatedTimestampDesc(String itemId);
+    // Finds the current/latest price for an item
+    Optional<PricingCatalog> findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
 
     // Finds full price history for an item
-    List<PricingCatalog> findAllByIdItemIdOrderByIdCreatedTimestampDesc(String itemId);
+    List<PricingCatalog> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
 }

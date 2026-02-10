@@ -53,12 +53,27 @@ public class InventoryServiceImpl implements InventoryService {
         logger.info("Updating inventory item: {}", itemId);
 
         return inventoryItemRepository.findById(itemId).map(existingItem -> {
+            boolean idChanged = !itemId.equals(itemDTO.getItemId());
+
+            if (idChanged) {
+                logger.info("Renaming itemId from {} to {}", itemId, itemDTO.getItemId());
+                if (inventoryItemRepository.existsById(itemDTO.getItemId())) {
+                    return "New Item ID already exists";
+                }
+                // Perform native update to trigger DB-level ON UPDATE CASCADE
+                inventoryItemRepository.updateItemId(itemId, itemDTO.getItemId());
+
+                // Fetch the "new" entity to update other fields (or we could just use native
+                // for all)
+                existingItem = inventoryItemRepository.findById(itemDTO.getItemId()).get();
+            }
+
             existingItem.setItemName(itemDTO.getItemName());
             existingItem.setAvailableStock(itemDTO.getAvailableStock());
             existingItem.setReservedStock(itemDTO.getReservedStock());
 
             inventoryItemRepository.save(existingItem);
-            logger.info("Item updated successfully: {}", itemId);
+            logger.info("Item updated successfully: {}", itemDTO.getItemId());
             return "Item updated successfully";
 
         }).orElseGet(() -> {
@@ -97,6 +112,11 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     private InventoryItem convertToEntity(InventoryItemDTO dto) {
-        return new InventoryItem(dto.getItemId(), dto.getItemName(), dto.getAvailableStock(), dto.getReservedStock());
+        InventoryItem item = new InventoryItem();
+        item.setItemId(dto.getItemId());
+        item.setItemName(dto.getItemName());
+        item.setAvailableStock(dto.getAvailableStock());
+        item.setReservedStock(dto.getReservedStock());
+        return item;
     }
 }
