@@ -156,4 +156,36 @@ class CustomerServiceImplTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("User not found");
     }
+
+    @Test
+    @DisplayName("getCustomerProfile with NULL email should throw exception")
+    void getCustomerProfile_NullEmail() {
+        // Assert
+        assertThatThrownBy(() -> customerService.getCustomerProfile(null))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    @DisplayName("updateCustomerProfile with NULL email should throw exception")
+    void updateCustomerProfile_NullEmail() {
+        // Assert
+        assertThatThrownBy(() -> customerService.updateCustomerProfile(null, new CustomerProfileDTO()))
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    @DisplayName("updateCustomerProfile with NULL DTO should throw exception")
+    void updateCustomerProfile_NullDTO() {
+        // Arrange
+        String email = "valid@example.com";
+        AppUser user = new AppUser();
+        Customer customer = new Customer();
+
+        when(appUserRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        when(customerRepository.findByAppUser(user)).thenReturn(Optional.of(customer));
+
+        // Assert
+        assertThatThrownBy(() -> customerService.updateCustomerProfile(email, null))
+                .isInstanceOf(NullPointerException.class);
+    }
 }
