@@ -1,0 +1,231 @@
+package com.example.ordermgmt.service.impl;
+
+import com.example.ordermgmt.dto.LoginRequestDTO;
+import com.example.ordermgmt.dto.LoginResponseDTO;
+import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
+import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
+import com.example.ordermgmt.entity.AppUser;
+import com.example.ordermgmt.entity.RefreshToken;
+import com.example.ordermgmt.entity.UserRole;
+import com.example.ordermgmt.repository.AppUserRepository;
+import com.example.ordermgmt.repository.RefreshTokenRepository;
+import com.example.ordermgmt.security.JwtUtil;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.time.Instant;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class AuthServiceImpl_LoginoutRefressTest {
+
+    @Mock
+    private AppUserRepository appUserRepository;
+
+    @Mock
+    private RefreshTokenRepository refreshTokenRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private JwtUtil jwtUtil;
+
+    @InjectMocks
+    private AuthServiceImpl authService;
+
+    // --- LOGIN TESTS ---
+
+    @Test
+    @DisplayName("Login Success: Should return tokens when credentials are valid")
+    void loginUser_Success() {
+        // Arrange
+        LoginRequestDTO request = new LoginRequestDTO();
+        request.setEmail("user@test.com");
+        request.setPassword("password");
+
+        UserRole role = new UserRole();
+        role.setRoleName("CUSTOMER");
+
+        AppUser user = new AppUser();
+        user.setEmail("user@test.com");
+        user.setPasswordHash("hashed_pass");
+        user.setRole(role);
+        user.setIsActive(true);
+
+        RefreshToken token = new RefreshToken();
+        token.setToken("fake-refresh-token");
+
+        when(appUserRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(request.getPassword(), user.getPasswordHash())).thenReturn(true);
+        when(jwtUtil.generateToken(anyString(), anyString())).thenReturn("fake-access-token");
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(token);
+
+        // Act
+        LoginResponseDTO response = authService.loginUser(request);
+
+        // Assert
+        assertThat(response.getMessage()).isEqualTo("Login successful");
+        assertThat(response.getAccessToken()).isEqualTo("fake-access-token");
+        assertThat(response.getRefreshToken()).isEqualTo("fake-refresh-token");
+        verify(refreshTokenRepository, times(1)).save(any());
+    }
+
+    @Test
+    @DisplayName("Login Failure: Should fail when user is not found")
+    void loginUser_Failure_UserNotFound() {
+        // Arrange
+        LoginRequestDTO request = new LoginRequestDTO();
+        request.setEmail("unknown@test.com");
+
+        when(appUserRepository.findByEmail(request.getEmail())).thenReturn(Optional.empty());
+
+        // Act
+        LoginResponseDTO response = authService.loginUser(request);
+
+        // Assert
+        assertThat(response.getMessage()).isEqualTo("User not found");
+        assertThat(response.getAccessToken()).isNull();
+    }
+
+    @Test
+    @DisplayName("Login Failure: Should fail when password matches is false")
+    void loginUser_Failure_InvalidCredentials() {
+        // Arrange
+        LoginRequestDTO request = new LoginRequestDTO();
+        request.setEmail("user@test.com");
+        request.setPassword("wrong-pass");
+
+        AppUser user = new AppUser();
+        user.setPasswordHash("hashed_pass");
+
+        when(appUserRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
+
+        // Act
+        LoginResponseDTO response = authService.loginUser(request);
+
+        // Assert
+        assertThat(response.getMessage()).isEqualTo("Invalid credentials");
+    }
+
+    @Test
+    @DisplayName("Login Failure: Should fail when user is inactive")
+    void loginUser_Failure_UserInactive() {
+        // Arrange
+        LoginRequestDTO request = new LoginRequestDTO();
+        request.setEmail("inactive@test.com");
+
+        AppUser user = new AppUser();
+        user.setIsActive(false);
+
+        when(appUserRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches(any(), any())).thenReturn(true);
+
+        // Act
+        LoginResponseDTO response = authService.loginUser(request);
+
+        // Assert
+        assertThat(response.getMessage()).isEqualTo("User is inactive");
+    }
+
+    // --- REFRESH TOKEN TESTS ---
+
+    @Test
+    @DisplayName("Refresh Success: Should return new access token for valid refresh token")
+    void refreshToken_Success() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("valid-token");
+
+        UserRole role = new UserRole();
+        role.setRoleName("CUSTOMER");
+
+        AppUser user = new AppUser();
+        user.setEmail("user@test.com");
+        user.setRole(role);
+
+        RefreshToken dbToken = new RefreshToken();
+        dbToken.setAppUser(user);
+        dbToken.setExpiryDate(Instant.now().plusSeconds(3600));
+
+        when(refreshTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(dbToken));
+        when(jwtUtil.generateToken(anyString(), anyString())).thenReturn("new-access-token");
+
+        // Act
+        RefreshTokenResponseDTO response = authService.refreshToken(request);
+
+        // Assert
+        assertThat(response.getMessage()).isEqualTo("Token refreshed successfully");
+        assertThat(response.getAccessToken()).isEqualTo("new-access-token");
+    }
+
+    @Test
+    @DisplayName("Refresh Failure: Should fail for expired token")
+    void refreshToken_Failure_Expired() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("expired-token");
+
+        RefreshToken dbToken = new RefreshToken();
+        dbToken.setExpiryDate(Instant.now().minusSeconds(3600)); // Expired
+
+        when(refreshTokenRepository.findByToken("expired-token")).thenReturn(Optional.of(dbToken));
+
+        // Act
+        RefreshTokenResponseDTO response = authService.refreshToken(request);
+
+        // Assert
+        assertThat(response.getAccessToken()).isNull();
+        assertThat(response.getMessage()).contains("expired");
+    }
+
+    @Test
+    @DisplayName("Refresh Failure: Should throw exception when token not in DB")
+    void refreshToken_Failure_NotFound() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("unknown-token");
+
+        when(refreshTokenRepository.findByToken("unknown-token")).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("not in database");
+    }
+
+    // --- LOGOUT TESTS ---
+
+    @Test
+    @DisplayName("Logout Success: Should revoke the refresh token")
+    void logoutUser_Success() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("token-to-revoke");
+
+        RefreshToken dbToken = new RefreshToken();
+        dbToken.setRevoked(false);
+
+        when(refreshTokenRepository.findByToken("token-to-revoke")).thenReturn(Optional.of(dbToken));
+
+        // Act
+        String result = authService.logoutUser(request);
+
+        // Assert
+        assertThat(result).isEqualTo("Logout successful");
+        assertThat(dbToken.getRevoked()).isTrue();
+        verify(refreshTokenRepository, times(1)).save(dbToken);
+    }
+}
