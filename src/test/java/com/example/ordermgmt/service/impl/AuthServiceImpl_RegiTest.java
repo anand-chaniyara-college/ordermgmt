@@ -20,6 +20,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -126,5 +127,12 @@ class AuthServiceImpl_RegiTest {
         assertThat(result).isEqualTo("Role not found");
         verify(appUserRepository, never()).save(any());
         verify(customerRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Registration with NULL request should throw exception")
+    void registerUser_NullRequest() {
+        assertThatThrownBy(() -> authService.registerUser(null))
+                .isInstanceOf(NullPointerException.class);
     }
 }

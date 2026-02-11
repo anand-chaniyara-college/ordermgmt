@@ -228,4 +228,93 @@ class AuthServiceImpl_LoginoutRefressTest {
         assertThat(dbToken.getRevoked()).isTrue();
         verify(refreshTokenRepository, times(1)).save(dbToken);
     }
+
+    @Test
+    @DisplayName("Login with NULL request should throw exception")
+    void loginUser_NullRequest() {
+        assertThatThrownBy(() -> authService.loginUser(null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("RefreshToken with NULL request should throw exception")
+    void refreshToken_NullRequest() {
+        assertThatThrownBy(() -> authService.refreshToken(null))
+                .isInstanceOf(NullPointerException.class);
+    }
+
+    @Test
+    @DisplayName("Logout Should handle case where token is not found (Idempotency)")
+    void logoutUser_TokenNotFound() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("non-existent-token");
+
+        when(refreshTokenRepository.findByToken("non-existent-token")).thenReturn(Optional.empty());
+
+        // Act
+        String result = authService.logoutUser(request);
+
+        // Assert
+        assertThat(result).isEqualTo("Logout successful");
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Refresh Should Fail when Token is Revoked")
+    void refreshToken_ShouldFailForRevokedToken() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("revoked-token");
+
+        UserRole role = new UserRole();
+        role.setRoleName("CUSTOMER");
+
+        AppUser user = new AppUser();
+        user.setEmail("user@test.com");
+        user.setRole(role);
+
+        RefreshToken dbToken = new RefreshToken();
+        dbToken.setAppUser(user);
+        dbToken.setExpiryDate(Instant.now().plusSeconds(3600)); // Valid time
+        dbToken.setRevoked(true); // REVOKED!
+
+        when(refreshTokenRepository.findByToken("revoked-token")).thenReturn(Optional.of(dbToken));
+
+        // Act & Assert
+        // This assertion checks if the service CORRECTLY rejects a revoked token.
+        // It will fail if the service allows it (which is the current bug).
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .withFailMessage("Security Flaw: Service refreshed a REVOKED token!")
+                .isInstanceOf(RuntimeException.class);
+    }
+
+    @Test
+    @DisplayName("BUG FOUND: Refresh Should Fail when User is Inactive")
+    void refreshToken_ShouldFailForInactiveUser() {
+        // Arrange
+        RefreshTokenRequestDTO request = new RefreshTokenRequestDTO();
+        request.setRefreshToken("valid-token-inactive-user");
+
+        UserRole role = new UserRole();
+        role.setRoleName("CUSTOMER");
+
+        AppUser user = new AppUser();
+        user.setEmail("inactive@test.com");
+        user.setRole(role);
+        user.setIsActive(false); // INACTIVE USER
+
+        RefreshToken dbToken = new RefreshToken();
+        dbToken.setAppUser(user);
+        dbToken.setExpiryDate(Instant.now().plusSeconds(3600));
+        dbToken.setRevoked(false);
+
+        when(refreshTokenRepository.findByToken("valid-token-inactive-user")).thenReturn(Optional.of(dbToken));
+
+        // Act & Assert
+        // This assertion checks if the service CORRECTLY rejects an inactive user.
+        assertThatThrownBy(() -> authService.refreshToken(request))
+                .withFailMessage("Security Flaw: Service refreshed token for INACTIVE user!")
+                .isInstanceOf(RuntimeException.class);
+    }
 }
