@@ -11,9 +11,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "0. Authentication", description = "Everything you need to sign up, log in, and stay secure")
 public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
@@ -24,6 +27,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
+    @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN)")
     public ResponseEntity<RegistrationResponseDTO> register(@RequestBody RegistrationRequestDTO request) {
         logger.info("Received registration request for email: {}", request.getEmail());
 
@@ -39,6 +43,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(summary = "Sign In", description = "Log into your account using your email and password to get an access token")
     public ResponseEntity<LoginResponseDTO> login(@RequestBody LoginRequestDTO request) {
         logger.info("Received login request for email: {}", request.getEmail());
 
@@ -54,6 +59,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @Operation(summary = "Refresh Security Token", description = "Extend your session by generating a new access token using your refresh token")
     public ResponseEntity<RefreshTokenResponseDTO> refreshToken(@RequestBody RefreshTokenRequestDTO request) {
         logger.info("Received refresh token request");
 
@@ -74,6 +80,7 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(summary = "Sign Out", description = "End your current session and invalidate your security token")
     public ResponseEntity<String> logout(@RequestBody RefreshTokenRequestDTO request) {
         logger.info("Received logout request");
         authService.logoutUser(request);

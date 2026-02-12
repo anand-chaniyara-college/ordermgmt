@@ -8,11 +8,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/customer/products")
+@Tag(name = "3. Product Catalog", description = "Browse our full range of available products and prices")
 public class ProductController {
 
     private static final Logger logger = LoggerFactory.getLogger(ProductController.class);
@@ -23,6 +26,7 @@ public class ProductController {
     }
 
     @GetMapping
+    @Operation(summary = "Browse Products", description = "Get a list of all products currently available for purchase")
     public ResponseEntity<List<ProductDTO>> getAvailableProducts() {
         logger.info("Received request to get available products");
         return ResponseEntity.ok(productService.getAvailableProducts());

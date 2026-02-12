@@ -5,15 +5,19 @@ import com.example.ordermgmt.service.AdminAnalyticsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/admin/analytics")
 @RequiredArgsConstructor
+@Tag(name = "7. Analytics & Reports (Admin)", description = "View sales trends, monthly performance, and send reports to email")
 public class AdminAnalyticsController {
 
     private final AdminAnalyticsService adminAnalyticsService;
 
     @GetMapping("/monthlyreport")
+    @Operation(summary = "View Monthly Sales Report", description = "Get a detailed breakdown of sales, quantities, and totals for a specific month and year")
     public ResponseEntity<?> getMonthlyReport(
             @RequestParam(required = false) String month,
             @RequestParam(required = false) Integer year) {
@@ -37,6 +41,7 @@ public class AdminAnalyticsController {
     }
 
     @PostMapping("/sendreportemail")
+    @Operation(summary = "Email Sales Report", description = "Generate the monthly sales report and send it directly to the admin's email address")
     public ResponseEntity<String> sendReportEmail(
             @RequestBody com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO request,
             java.security.Principal principal) {
