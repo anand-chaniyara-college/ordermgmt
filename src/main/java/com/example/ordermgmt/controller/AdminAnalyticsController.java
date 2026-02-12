@@ -35,4 +35,20 @@ public class AdminAnalyticsController {
             return ResponseEntity.internalServerError().body("An unexpected error occurred: " + e.getMessage());
         }
     }
+
+    @PostMapping("/sendreportemail")
+    public ResponseEntity<String> sendReportEmail(
+            @RequestBody com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO request,
+            java.security.Principal principal) {
+
+        String adminEmail = principal.getName();
+        try {
+            adminAnalyticsService.sendMonthlyReportEmail(request.getMonth(), request.getYear(), adminEmail);
+            return ResponseEntity.ok("Report email request submitted for " + adminEmail);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body("Error: " + e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("An unexpected error occurred: " + e.getMessage());
+        }
+    }
 }
