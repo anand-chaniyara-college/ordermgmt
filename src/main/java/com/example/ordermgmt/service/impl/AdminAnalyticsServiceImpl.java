@@ -29,21 +29,42 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         if (report == null || report.getTotalSoldItems() == null || report.getTotalSoldItems() == 0) {
             return null;
         }
+
+        java.util.List<com.example.ordermgmt.dto.analytics.ItemSalesReportDTO> items = orderItemRepository
+                .getMonthlyItemWiseReport(monthInt, year);
+        report.setItems(items);
+
         return report;
     }
 
     @Override
     public void sendMonthlyReportEmail(String month, int year, String recipientEmail) {
         MonthlySalesLogDTO report = getMonthlyReport(month, year);
-        String content;
+        StringBuilder sb = new StringBuilder();
+
         if (report == null) {
-            content = "No records found for " + month + " " + year + ".";
+            sb.append("No records found for ").append(month).append(" ").append(year).append(".");
         } else {
-            content = String.format(
-                    "Monthly Sales Report for %s %d\n\nTotal Items Sold: %d\nTotal Revenue: %s",
-                    month, year, report.getTotalSoldItems(), report.getTotalRevenue().toString());
+            sb.append(String.format("Monthly Sales Report for %s %d\n", month, year));
+            sb.append("====================================\n\n");
+            sb.append(String.format("Total Items Sold: %d\n", report.getTotalSoldItems()));
+            sb.append(String.format("Total Revenue: %.2f\n\n", report.getTotalRevenue()));
+
+            sb.append("Item-wise Breakdown:\n");
+            sb.append("------------------------------------\n");
+
+            if (report.getItems() != null) {
+                for (com.example.ordermgmt.dto.analytics.ItemSalesReportDTO item : report.getItems()) {
+                    sb.append(String.format("Item ID: %s\n", item.getItemId()));
+                    sb.append(String.format("Item Name: %s\n",
+                            item.getItemName() != null ? item.getItemName() : "N/A"));
+                    sb.append(String.format("Total Sold: %d\n", item.getTotalSoldItems()));
+                    sb.append(String.format("Revenue Generated: %.2f\n", item.getTotalRevenue()));
+                    sb.append("------------------------------------\n");
+                }
+            }
         }
 
-        emailService.sendEmail(recipientEmail, "Monthly Sales Report: " + month + " " + year, content);
+        emailService.sendEmail(recipientEmail, "Monthly Sales Report: " + month + " " + year, sb.toString());
     }
 }
