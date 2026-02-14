@@ -19,19 +19,18 @@ import org.hibernate.annotations.GenericGenerator;
 public class PricingCatalog {
 
     @Id
-    @GeneratedValue(generator = "system-uuid")
-    @GenericGenerator(name = "system-uuid", strategy = "uuid2")
-    @Column(name = "uuid", length = 36)
-    private String uuid;
+    @Column(name = "itemid", length = 50)
+    private String itemId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "itemid", referencedColumnName = "itemid", nullable = false, foreignKey = @ForeignKey(name = "FK_PRICING_ITEM", foreignKeyDefinition = "FOREIGN KEY (itemid) REFERENCES ordermgmt.INVENTORY_ITEM(itemid) ON UPDATE CASCADE"))
+    @OneToOne(fetch = FetchType.LAZY)
+    @MapsId
+    @JoinColumn(name = "itemid", referencedColumnName = "itemid", foreignKey = @ForeignKey(name = "FK_PRICING_ITEM"))
     private InventoryItem inventoryItem;
 
     @PositiveOrZero(message = "Unit price must be non-negative")
     @Column(name = "unitprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal unitPrice;
 
-    @Column(name = "createdtimestamp", nullable = false, columnDefinition = "TIMESTAMP(0)")
-    private LocalDateTime createdTimestamp;
+    @Column(name = "updatedtimestamp", nullable = false, columnDefinition = "TIMESTAMP(0)")
+    private LocalDateTime updatedTimestamp;
 }

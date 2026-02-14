@@ -11,8 +11,6 @@ import java.util.Optional;
 public interface PricingCatalogRepository extends JpaRepository<PricingCatalog, String> {
 
     // Finds the current/latest price for an item
-    Optional<PricingCatalog> findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
-
-    // Finds full price history for an item
-    List<PricingCatalog> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
+    // Finds the current/latest price for an item
+    Optional<PricingCatalog> findByItemId(String itemId);
 }

@@ -31,8 +31,11 @@ public class InventoryItem {
     @Column(name = "reservedstock", nullable = false)
     private Integer reservedStock;
 
-    @OneToMany(mappedBy = "inventoryItem")
-    private java.util.List<PricingCatalog> pricingHistory;
+    @OneToOne(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
+    private PricingCatalog pricingCatalog;
+
+    @OneToMany(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
+    private java.util.List<PricingHistory> pricingHistoryLogs;
 
     @AssertTrue(message = "Available stock must be greater than or equal to reserved stock")
     public boolean isStockConsistent() {

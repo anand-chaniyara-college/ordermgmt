@@ -69,10 +69,11 @@ public class OrderServiceImpl implements OrderService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity must be positive");
             }
 
-            PricingCatalog pricing = pricingRepository
-                    .findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(itemReq.getItemId())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "Price not found for: " + itemReq.getItemId()));
+            if (inventoryItem.getPricingCatalog() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Price not found for: " + itemReq.getItemId());
+            }
+            PricingCatalog pricing = inventoryItem.getPricingCatalog();
 
             OrderItem orderItem = new OrderItem();
             orderItem.setId(new OrderItem.OrderItemId(orderId, inventoryItem.getItemId()));

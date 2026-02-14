@@ -12,4 +12,5 @@ public class InventoryItemDTO {
     private String itemName;
     private Integer availableStock;
     private Integer reservedStock;
+    private java.math.BigDecimal currentPrice;
 }

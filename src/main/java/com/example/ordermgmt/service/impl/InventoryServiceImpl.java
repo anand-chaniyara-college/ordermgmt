@@ -108,7 +108,8 @@ public class InventoryServiceImpl implements InventoryService {
     // Helper methods
     private InventoryItemDTO convertToDTO(InventoryItem item) {
         return new InventoryItemDTO(item.getItemId(), item.getItemName(), item.getAvailableStock(),
-                item.getReservedStock());
+                item.getReservedStock(),
+                item.getPricingCatalog() != null ? item.getPricingCatalog().getUnitPrice() : null);
     }
 
     private InventoryItem convertToEntity(InventoryItemDTO dto) {

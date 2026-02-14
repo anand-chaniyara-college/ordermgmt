@@ -38,10 +38,9 @@ public class ProductServiceImpl implements ProductService {
         List<ProductDTO> available = items.stream()
                 .filter(item -> item.getAvailableStock() != null && item.getAvailableStock() > 0)
                 .map(item -> {
-                    BigDecimal price = pricingCatalogRepository
-                            .findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(item.getItemId())
-                            .map(PricingCatalog::getUnitPrice)
-                            .orElse(BigDecimal.ZERO);
+                    BigDecimal price = (item.getPricingCatalog() != null)
+                            ? item.getPricingCatalog().getUnitPrice()
+                            : BigDecimal.ZERO;
 
                     return new ProductDTO(item.getItemId(), item.getItemName(), price, item.getAvailableStock());
                 })
