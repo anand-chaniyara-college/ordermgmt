@@ -128,7 +128,17 @@ public class AuthServiceImpl implements AuthService {
                                 "Refresh token was expired. Please make a new signin request");
                     }
 
+                    if (Boolean.TRUE.equals(token.getRevoked())) {
+                        logger.warn("Refresh token is revoked");
+                        throw new RuntimeException("Refresh token is revoked!");
+                    }
+
                     AppUser user = token.getAppUser();
+                    if (!Boolean.TRUE.equals(user.getIsActive())) {
+                        logger.warn("User is inactive");
+                        throw new RuntimeException("User is inactive!");
+                    }
+
                     String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
                     logger.info("Access token refreshed successfully for user: {}", user.getEmail());

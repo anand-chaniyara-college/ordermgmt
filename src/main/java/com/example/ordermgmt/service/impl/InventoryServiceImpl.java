@@ -24,9 +24,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     public List<InventoryItemDTO> getAllInventory() {
         logger.info("Fetching all inventory items");
-
         List<InventoryItem> entities = inventoryItemRepository.findAll();
-
         return entities.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
@@ -53,19 +51,8 @@ public class InventoryServiceImpl implements InventoryService {
         logger.info("Updating inventory item: {}", itemId);
 
         return inventoryItemRepository.findById(itemId).map(existingItem -> {
-            boolean idChanged = !itemId.equals(itemDTO.getItemId());
-
-            if (idChanged) {
-                logger.info("Renaming itemId from {} to {}", itemId, itemDTO.getItemId());
-                if (inventoryItemRepository.existsById(itemDTO.getItemId())) {
-                    return "New Item ID already exists";
-                }
-                // Perform native update to trigger DB-level ON UPDATE CASCADE
-                inventoryItemRepository.updateItemId(itemId, itemDTO.getItemId());
-
-                // Fetch the "new" entity to update other fields (or we could just use native
-                // for all)
-                existingItem = inventoryItemRepository.findById(itemDTO.getItemId()).get();
+            if (!itemId.equals(itemDTO.getItemId())) {
+                throw new IllegalArgumentException("Item ID cannot be changed");
             }
 
             existingItem.setItemName(itemDTO.getItemName());
@@ -105,7 +92,6 @@ public class InventoryServiceImpl implements InventoryService {
         }
     }
 
-    // Helper methods
     private InventoryItemDTO convertToDTO(InventoryItem item) {
         return new InventoryItemDTO(item.getItemId(), item.getItemName(), item.getAvailableStock(),
                 item.getReservedStock(),

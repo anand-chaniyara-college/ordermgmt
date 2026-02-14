@@ -63,20 +63,20 @@ public class AdminPriceServiceImpl implements AdminPriceService {
 
         LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
 
-        // 1. Save to Catalog
+        // Save to Catalog
         PricingCatalog pricing = new PricingCatalog();
         pricing.setInventoryItem(item);
         pricing.setUnitPrice(pricingDTO.getUnitPrice());
         pricing.setUpdatedTimestamp(now);
         pricingCatalogRepository.save(pricing);
 
-        // 2. Save Initial History
+        // Save Initial History
         PricingHistory history = new PricingHistory();
         history.setInventoryItem(item);
         history.setOldPrice(null);
         history.setNewPrice(pricingDTO.getUnitPrice());
         history.setCreatedTimestamp(now);
-        history.setChangedBy("ADMIN"); // Placeholder for now
+        history.setChangedBy("ADMIN");
         pricingHistoryRepository.save(history);
 
         return "Price record added successfully at " + now.format(formatter);
@@ -91,15 +91,15 @@ public class AdminPriceServiceImpl implements AdminPriceService {
 
         LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
 
-        // 1. Capture old price
+        // Capture old price
         java.math.BigDecimal oldPrice = target.getUnitPrice();
 
-        // 2. Update Catalog
+        // Update Catalog
         target.setUnitPrice(pricingDTO.getUnitPrice());
         target.setUpdatedTimestamp(now);
         pricingCatalogRepository.save(target);
 
-        // 3. Save History
+        // Save History
         PricingHistory history = new PricingHistory();
         history.setInventoryItem(target.getInventoryItem());
         history.setOldPrice(oldPrice);
