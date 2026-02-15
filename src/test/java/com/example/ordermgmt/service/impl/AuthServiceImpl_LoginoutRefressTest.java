@@ -164,7 +164,7 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(jwtUtil.generateToken(anyString(), anyString())).thenReturn("new-access-token");
 
         // Act
-        RefreshTokenResponseDTO response = authService.refreshToken(request);
+        RefreshTokenResponseDTO response = authService.refreshToken(request, "dummy-access-token");
 
         // Assert
         assertThat(response.getMessage()).isEqualTo("Token refreshed successfully");
@@ -184,7 +184,7 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(refreshTokenRepository.findByToken("expired-token")).thenReturn(Optional.of(dbToken));
 
         // Act
-        RefreshTokenResponseDTO response = authService.refreshToken(request);
+        RefreshTokenResponseDTO response = authService.refreshToken(request, "dummy-access-token");
 
         // Assert
         assertThat(response.getAccessToken()).isNull();
@@ -201,7 +201,7 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(refreshTokenRepository.findByToken("unknown-token")).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> authService.refreshToken(request))
+        assertThatThrownBy(() -> authService.refreshToken(request, "dummy-access-token"))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("not in database");
     }
@@ -221,10 +221,10 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(refreshTokenRepository.findByToken("token-to-revoke")).thenReturn(Optional.of(dbToken));
 
         // Act
-        String result = authService.logoutUser(request);
+        authService.logoutUser(request, "dummy-access-token");
 
         // Assert
-        assertThat(result).isEqualTo("Logout successful");
+        // Assert
         assertThat(dbToken.getRevoked()).isTrue();
         verify(refreshTokenRepository, times(1)).save(dbToken);
     }
@@ -239,7 +239,7 @@ class AuthServiceImpl_LoginoutRefressTest {
     @Test
     @DisplayName("RefreshToken with NULL request should throw exception")
     void refreshToken_NullRequest() {
-        assertThatThrownBy(() -> authService.refreshToken(null))
+        assertThatThrownBy(() -> authService.refreshToken(null, "dummy-access-token"))
                 .isInstanceOf(NullPointerException.class);
     }
 
@@ -253,10 +253,10 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(refreshTokenRepository.findByToken("non-existent-token")).thenReturn(Optional.empty());
 
         // Act
-        String result = authService.logoutUser(request);
+        authService.logoutUser(request, "dummy-access-token");
 
         // Assert
-        assertThat(result).isEqualTo("Logout successful");
+        // Assert
         verify(refreshTokenRepository, never()).save(any());
     }
 
@@ -284,7 +284,7 @@ class AuthServiceImpl_LoginoutRefressTest {
         // Act & Assert
         // This assertion checks if the service CORRECTLY rejects a revoked token.
         // It will fail if the service allows it (which is the current bug).
-        assertThatThrownBy(() -> authService.refreshToken(request))
+        assertThatThrownBy(() -> authService.refreshToken(request, "dummy-access-token"))
                 .withFailMessage("Security Flaw: Service refreshed a REVOKED token!")
                 .isInstanceOf(RuntimeException.class);
     }
@@ -313,7 +313,7 @@ class AuthServiceImpl_LoginoutRefressTest {
 
         // Act & Assert
         // This assertion checks if the service CORRECTLY rejects an inactive user.
-        assertThatThrownBy(() -> authService.refreshToken(request))
+        assertThatThrownBy(() -> authService.refreshToken(request, "dummy-access-token"))
                 .withFailMessage("Security Flaw: Service refreshed token for INACTIVE user!")
                 .isInstanceOf(RuntimeException.class);
     }

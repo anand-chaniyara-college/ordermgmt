@@ -4,6 +4,13 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import jakarta.persistence.EntityListeners;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
 
 @Entity
 @Table(name = "REFRESH_TOKEN", schema = "ordermgmt")
@@ -11,6 +18,7 @@ import java.time.Instant;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class RefreshToken {
 
     @Id
@@ -29,4 +37,20 @@ public class RefreshToken {
 
     @Column(name = "revoked")
     private Boolean revoked = false;
+
+    @CreatedDate
+    @Column(name = "createdtimestamp", nullable = false, updatable = false)
+    private LocalDateTime createdTimestamp;
+
+    @LastModifiedDate
+    @Column(name = "updatedtimestamp")
+    private LocalDateTime updatedTimestamp;
+
+    @CreatedBy
+    @Column(name = "createdby", updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updatedby")
+    private String updatedBy;
 }

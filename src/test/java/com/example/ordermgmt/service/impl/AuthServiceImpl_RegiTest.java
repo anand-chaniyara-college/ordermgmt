@@ -14,6 +14,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.example.ordermgmt.exception.UserAlreadyExistsException;
+import com.example.ordermgmt.exception.RoleNotFoundException;
 
 import java.util.Optional;
 
@@ -58,10 +60,10 @@ class AuthServiceImpl_RegiTest {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed_pass");
 
         // Act
-        String result = authService.registerUser(request);
+        // Act
+        authService.registerUser(request);
 
         // Assert
-        assertThat(result).isEqualTo("Registration successful");
         verify(appUserRepository, times(1)).save(any(AppUser.class));
         verify(customerRepository, times(1)).save(any(Customer.class));
     }
@@ -83,10 +85,10 @@ class AuthServiceImpl_RegiTest {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed_pass");
 
         // Act
-        String result = authService.registerUser(request);
+        // Act
+        authService.registerUser(request);
 
         // Assert
-        assertThat(result).isEqualTo("Registration successful");
         verify(appUserRepository, times(1)).save(any(AppUser.class));
         verify(customerRepository, never()).save(any(Customer.class));
     }
@@ -101,10 +103,10 @@ class AuthServiceImpl_RegiTest {
         when(appUserRepository.findByEmail(request.getEmail())).thenReturn(Optional.of(new AppUser()));
 
         // Act
-        String result = authService.registerUser(request);
-
-        // Assert
-        assertThat(result).isEqualTo("Email already exists");
+        // Act & Assert
+        assertThatThrownBy(() -> authService.registerUser(request))
+                .isInstanceOf(UserAlreadyExistsException.class)
+                .hasMessageContaining("Email already exists");
         verify(appUserRepository, never()).save(any());
         verify(customerRepository, never()).save(any());
     }
@@ -121,10 +123,10 @@ class AuthServiceImpl_RegiTest {
         when(userRoleRepository.findByRoleName("MODERATOR")).thenReturn(Optional.empty());
 
         // Act
-        String result = authService.registerUser(request);
-
-        // Assert
-        assertThat(result).isEqualTo("Role not found");
+        // Act & Assert
+        assertThatThrownBy(() -> authService.registerUser(request))
+                .isInstanceOf(RoleNotFoundException.class)
+                .hasMessageContaining("Role not found");
         verify(appUserRepository, never()).save(any());
         verify(customerRepository, never()).save(any());
     }

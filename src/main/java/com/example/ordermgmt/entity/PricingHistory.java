@@ -9,6 +9,12 @@ import org.hibernate.annotations.GenericGenerator;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import jakarta.persistence.EntityListeners;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
 
 @Getter
 @Setter
@@ -16,6 +22,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Entity
 @Table(name = "PRICING_HISTORY", schema = "ordermgmt")
+@EntityListeners(AuditingEntityListener.class)
 public class PricingHistory {
 
     @Id
@@ -34,9 +41,19 @@ public class PricingHistory {
     @Column(name = "newprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal newPrice;
 
-    @Column(name = "createdtimestamp", nullable = false, columnDefinition = "TIMESTAMP(0)")
+    @CreatedDate
+    @Column(name = "createdtimestamp", nullable = false, updatable = false)
     private LocalDateTime createdTimestamp;
 
-    @Column(name = "changedby", length = 100)
-    private String changedBy;
+    @LastModifiedDate
+    @Column(name = "updatedtimestamp")
+    private LocalDateTime updatedTimestamp;
+
+    @CreatedBy
+    @Column(name = "createdby", updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updatedby")
+    private String updatedBy;
 }

@@ -61,13 +61,11 @@ public class AdminPriceServiceImpl implements AdminPriceService {
             return "Price already set for this item. Use update instead.";
         }
 
-        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
-
         // Save to Catalog
         PricingCatalog pricing = new PricingCatalog();
         pricing.setInventoryItem(item);
         pricing.setUnitPrice(pricingDTO.getUnitPrice());
-        pricing.setUpdatedTimestamp(now);
+
         pricingCatalogRepository.save(pricing);
 
         // Save Initial History
@@ -75,11 +73,10 @@ public class AdminPriceServiceImpl implements AdminPriceService {
         history.setInventoryItem(item);
         history.setOldPrice(null);
         history.setNewPrice(pricingDTO.getUnitPrice());
-        history.setCreatedTimestamp(now);
-        history.setChangedBy("ADMIN");
+
         pricingHistoryRepository.save(history);
 
-        return "Price record added successfully at " + now.format(formatter);
+        return "Price record added successfully.";
     }
 
     @Override
@@ -89,14 +86,12 @@ public class AdminPriceServiceImpl implements AdminPriceService {
                 .orElseThrow(() -> new RuntimeException(
                         "No existing price record found for item: " + pricingDTO.getItemId()));
 
-        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
-
         // Capture old price
         java.math.BigDecimal oldPrice = target.getUnitPrice();
 
         // Update Catalog
         target.setUnitPrice(pricingDTO.getUnitPrice());
-        target.setUpdatedTimestamp(now);
+
         pricingCatalogRepository.save(target);
 
         // Save History
@@ -104,8 +99,7 @@ public class AdminPriceServiceImpl implements AdminPriceService {
         history.setInventoryItem(target.getInventoryItem());
         history.setOldPrice(oldPrice);
         history.setNewPrice(pricingDTO.getUnitPrice());
-        history.setCreatedTimestamp(now);
-        history.setChangedBy("ADMIN");
+
         pricingHistoryRepository.save(history);
 
         return "Price updated successfully for item: " + pricingDTO.getItemId();

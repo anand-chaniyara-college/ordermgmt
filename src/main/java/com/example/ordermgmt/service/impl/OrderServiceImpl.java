@@ -55,8 +55,6 @@ public class OrderServiceImpl implements OrderService {
         order.setOrderId(orderId);
         order.setCustomer(customer);
         order.setStatus(pendingStatus);
-        order.setCreatedTimestamp(LocalDateTime.now());
-        order.setUpdatedTimestamp(LocalDateTime.now());
 
         ordersRepository.save(order);
 
@@ -139,7 +137,7 @@ public class OrderServiceImpl implements OrderService {
                         "CANCELLED status missing"));
 
         order.setStatus(cancelledStatus);
-        order.setUpdatedTimestamp(LocalDateTime.now());
+
         ordersRepository.save(order);
 
         return convertToDTO(order);
@@ -175,7 +173,7 @@ public class OrderServiceImpl implements OrderService {
                         () -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status: " + newStatusName));
 
         order.setStatus(nextStatus);
-        order.setUpdatedTimestamp(LocalDateTime.now());
+
         ordersRepository.save(order);
 
         handleInventoryUpdate(order, currentStatus, newStatusName);

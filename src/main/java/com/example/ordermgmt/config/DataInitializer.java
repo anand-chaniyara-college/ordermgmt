@@ -64,7 +64,7 @@ public class DataInitializer {
                 customerUser.setPasswordHash(passwordEncoder.encode("password123"));
                 customerUser.setRole(customerRole);
                 customerUser.setIsActive(true);
-                customerUser.setCreatedTimestamp(java.time.LocalDateTime.now());
+
                 customerUser = userRepository.save(customerUser);
             }
 
@@ -87,7 +87,7 @@ public class DataInitializer {
                 adminUser.setPasswordHash(passwordEncoder.encode("adminpassword"));
                 adminUser.setRole(adminRole);
                 adminUser.setIsActive(true);
-                adminUser.setCreatedTimestamp(java.time.LocalDateTime.now());
+
                 userRepository.save(adminUser);
             }
 
