@@ -9,26 +9,31 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
+import org.springframework.beans.factory.annotation.Value;
+
 @Component
 public class JwtUtil {
 
-    // TODO: Move secret to application.properties for production
-    private static final String SECRET_STRING = "LearningSpringbootIsIntresting!123";
+    @Value("${jwt.secret}")
+    private String secretString;
+
+    @Value("${jwt.expiration}")
+    private long expirationTimeMs;
+
     private SecretKey key;
 
     @PostConstruct
     public void init() {
-        this.key = Keys.hmacShaKeyFor(SECRET_STRING.getBytes(StandardCharsets.UTF_8));
+        this.key = Keys.hmacShaKeyFor(secretString.getBytes(StandardCharsets.UTF_8));
     }
 
     public String generateToken(String email, String role) {
-        long expiryMillis = 1000 * 60 * 60; // 1 hour
-
         return Jwts.builder()
                 .subject(email)
                 .claim("role", role)
                 .issuedAt(new Date())
-                .expiration(new Date(System.currentTimeMillis() + expiryMillis))
+                .expiration(new Date(System.currentTimeMillis() + expirationTimeMs))
+
                 .signWith(key)
                 .compact();
     }

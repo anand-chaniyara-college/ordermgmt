@@ -7,11 +7,11 @@ import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
 import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 
 public interface AuthService {
-    String registerUser(RegistrationRequestDTO request);
+    void registerUser(RegistrationRequestDTO request);
 
     LoginResponseDTO loginUser(LoginRequestDTO request);
 
-    RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request);
+    RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request, String accessToken);
 
-    String logoutUser(RefreshTokenRequestDTO request);
+    void logoutUser(RefreshTokenRequestDTO request, String accessToken);
 }

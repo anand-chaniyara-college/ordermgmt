@@ -6,17 +6,29 @@ import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
 import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 import com.example.ordermgmt.dto.RegistrationRequestDTO;
 import com.example.ordermgmt.entity.AppUser;
+import com.example.ordermgmt.entity.Customer;
 import com.example.ordermgmt.entity.RefreshToken;
 import com.example.ordermgmt.entity.UserRole;
+import com.example.ordermgmt.exception.AccountInactiveException;
+import com.example.ordermgmt.exception.InvalidCredentialsException;
+import com.example.ordermgmt.exception.InvalidTokenException;
+import com.example.ordermgmt.exception.RoleNotFoundException;
+import com.example.ordermgmt.exception.UserAlreadyExistsException;
 import com.example.ordermgmt.repository.AppUserRepository;
+import com.example.ordermgmt.repository.CustomerRepository;
+import com.example.ordermgmt.repository.RefreshTokenRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
+import com.example.ordermgmt.entity.TokenBlacklist;
+import com.example.ordermgmt.repository.TokenBlacklistRepository;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -27,39 +39,39 @@ public class AuthServiceImpl implements AuthService {
 
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
-    private final com.example.ordermgmt.repository.CustomerRepository customerRepository;
-    private final com.example.ordermgmt.repository.RefreshTokenRepository refreshTokenRepository;
+    private final CustomerRepository customerRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
+    private final TokenBlacklistRepository tokenBlacklistRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
     public AuthServiceImpl(AppUserRepository appUserRepository,
             UserRoleRepository userRoleRepository,
-            com.example.ordermgmt.repository.CustomerRepository customerRepository,
-            com.example.ordermgmt.repository.RefreshTokenRepository refreshTokenRepository,
+            CustomerRepository customerRepository,
+            RefreshTokenRepository refreshTokenRepository,
+            TokenBlacklistRepository tokenBlacklistRepository,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.customerRepository = customerRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.tokenBlacklistRepository = tokenBlacklistRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
     }
 
     @Override
-    public String registerUser(RegistrationRequestDTO request) {
+    @Transactional
+    public void registerUser(RegistrationRequestDTO request) {
         logger.info("Processing registration for email: {}", request.getEmail());
 
         if (appUserRepository.findByEmail(request.getEmail()).isPresent()) {
-            logger.warn("Registration failed: Email already exists - {}", request.getEmail());
-            return "Email already exists";
+            throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
         }
 
-        UserRole role = userRoleRepository.findByRoleName(request.getRoleName()).orElse(null);
-        if (role == null) {
-            logger.warn("Registration failed: Role not found - {}", request.getRoleName());
-            return "Role not found";
-        }
+        UserRole role = userRoleRepository.findByRoleName(request.getRoleName())
+                .orElseThrow(() -> new RoleNotFoundException("Role not found: " + request.getRoleName()));
 
         AppUser newUser = new AppUser();
         newUser.setUserId(UUID.randomUUID().toString());
@@ -71,38 +83,34 @@ public class AuthServiceImpl implements AuthService {
 
         appUserRepository.save(newUser);
 
-        // Create an empty customer profile for CUSTOMER role
         if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
-            com.example.ordermgmt.entity.Customer customer = new com.example.ordermgmt.entity.Customer();
-            customer.setCustomerId(UUID.randomUUID().toString());
-            customer.setAppUser(newUser);
-            // Personal details will be updated later via profile update API
-            customerRepository.save(customer);
-            logger.info("Empty customer profile created for: {}", request.getEmail());
+            createEmptyCustomerProfile(newUser);
         }
 
         logger.info("User registered successfully: {}", request.getEmail());
-        return "Registration successful";
+    }
+
+    private void createEmptyCustomerProfile(AppUser user) {
+        Customer customer = new Customer();
+        customer.setCustomerId(UUID.randomUUID().toString());
+        customer.setAppUser(user);
+        customerRepository.save(customer);
+        logger.info("Empty customer profile created for: {}", user.getEmail());
     }
 
     @Override
     public LoginResponseDTO loginUser(LoginRequestDTO request) {
         logger.info("Processing login for email: {}", request.getEmail());
 
-        AppUser user = appUserRepository.findByEmail(request.getEmail()).orElse(null);
-        if (user == null) {
-            logger.warn("Login failed: User not found - {}", request.getEmail());
-            return new LoginResponseDTO(null, null, null, "User not found");
-        }
+        AppUser user = appUserRepository.findByEmail(request.getEmail())
+                .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            logger.warn("Login failed: Invalid credentials - {}", request.getEmail());
-            return new LoginResponseDTO(null, null, null, "Invalid credentials");
+            throw new InvalidCredentialsException("Invalid credentials");
         }
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            logger.warn("Login failed: User inactive - {}", request.getEmail());
-            return new LoginResponseDTO(null, null, null, "User is inactive");
+            throw new AccountInactiveException("User is inactive");
         }
 
         String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
@@ -115,47 +123,60 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request) {
+    public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request, String accessToken) {
         logger.info("Processing refresh token request");
 
-        String requestToken = request.getRefreshToken();
+        RefreshToken token = refreshTokenRepository.findByToken(request.getRefreshToken())
+                .orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
 
-        return refreshTokenRepository.findByToken(requestToken)
-                .map(token -> {
-                    if (token.getExpiryDate().isBefore(java.time.Instant.now())) {
-                        logger.warn("Refresh token expired");
-                        return new RefreshTokenResponseDTO(null, null, "Bearer",
-                                "Refresh token was expired. Please make a new signin request");
-                    }
+        validateRefreshToken(token);
 
-                    if (Boolean.TRUE.equals(token.getRevoked())) {
-                        logger.warn("Refresh token is revoked");
-                        throw new RuntimeException("Refresh token is revoked!");
-                    }
+        // Blacklist existing access token
+        blacklistAccessToken(accessToken);
 
-                    AppUser user = token.getAppUser();
-                    if (!Boolean.TRUE.equals(user.getIsActive())) {
-                        logger.warn("User is inactive");
-                        throw new RuntimeException("User is inactive!");
-                    }
+        // Revoke old refresh token (Rotation)
+        token.setRevoked(true);
+        refreshTokenRepository.save(token);
 
-                    String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
+        AppUser user = token.getAppUser();
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new AccountInactiveException("User is inactive");
+        }
 
-                    logger.info("Access token refreshed successfully for user: {}", user.getEmail());
-                    return new RefreshTokenResponseDTO(newAccessToken, requestToken, "Bearer",
-                            "Token refreshed successfully");
-                })
-                .orElseThrow(() -> {
-                    logger.error("Refresh token not found in database");
-                    return new RuntimeException("Refresh token is not in database!");
-                });
+        // Issue new tokens
+        String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
+        RefreshToken newRefreshToken = createRefreshToken(user);
+
+        logger.info("Access token refreshed and rotated successfully for user: {}", user.getEmail());
+        return new RefreshTokenResponseDTO(newAccessToken, newRefreshToken.getToken(), "Bearer",
+                "Token refreshed successfully");
+    }
+
+    private void blacklistAccessToken(String accessToken) {
+        if (accessToken != null && !accessToken.isBlank()) {
+            TokenBlacklist blacklistEntry = new TokenBlacklist();
+            blacklistEntry.setToken(accessToken);
+
+            blacklistEntry.setExpiryDate(Instant.now().plusSeconds(3600));
+            tokenBlacklistRepository.save(blacklistEntry);
+        }
+    }
+
+    private void validateRefreshToken(RefreshToken token) {
+        if (token.getExpiryDate().isBefore(Instant.now())) {
+            throw new InvalidTokenException("Refresh token expired");
+        }
+
+        if (Boolean.TRUE.equals(token.getRevoked())) {
+            throw new InvalidTokenException("Refresh token revoked");
+        }
     }
 
     private RefreshToken createRefreshToken(AppUser user) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setTokenId(UUID.randomUUID().toString());
         refreshToken.setAppUser(user);
-        refreshToken.setExpiryDate(java.time.Instant.now().plusMillis(1000L * 60 * 60 * 24 * 30)); // 30 Days
+        refreshToken.setExpiryDate(Instant.now().plusMillis(1000L * 60 * 60 * 24 * 7));
         refreshToken.setToken(UUID.randomUUID().toString());
         refreshToken.setRevoked(false);
 
@@ -163,17 +184,17 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String logoutUser(RefreshTokenRequestDTO request) {
+    public void logoutUser(RefreshTokenRequestDTO request, String accessToken) {
         logger.info("Processing logout request");
 
-        String requestToken = request.getRefreshToken();
+        // Blacklist access token
+        blacklistAccessToken(accessToken);
 
-        refreshTokenRepository.findByToken(requestToken).ifPresent(token -> {
+        // Revoke refresh token
+        refreshTokenRepository.findByToken(request.getRefreshToken()).ifPresent(token -> {
             token.setRevoked(true);
             refreshTokenRepository.save(token);
             logger.info("Refresh token revoked");
         });
-
-        return "Logout successful";
     }
 }

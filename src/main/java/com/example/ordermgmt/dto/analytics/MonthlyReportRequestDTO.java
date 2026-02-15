@@ -1,10 +1,12 @@
 package com.example.ordermgmt.dto.analytics;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 @Data
-@lombok.NoArgsConstructor
-@lombok.AllArgsConstructor
+@NoArgsConstructor
+@AllArgsConstructor
 public class MonthlyReportRequestDTO {
     private String month;
     private int year;
