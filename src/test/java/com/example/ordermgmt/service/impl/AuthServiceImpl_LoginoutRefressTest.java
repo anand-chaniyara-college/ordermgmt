@@ -9,7 +9,11 @@ import com.example.ordermgmt.entity.RefreshToken;
 import com.example.ordermgmt.entity.UserRole;
 import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.RefreshTokenRepository;
+import com.example.ordermgmt.service.TokenBlacklistService;
 import com.example.ordermgmt.security.JwtUtil;
+import com.example.ordermgmt.exception.InvalidCredentialsException;
+import com.example.ordermgmt.exception.AccountInactiveException;
+import com.example.ordermgmt.exception.InvalidTokenException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +45,9 @@ class AuthServiceImpl_LoginoutRefressTest {
 
     @Mock
     private JwtUtil jwtUtil;
+
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
 
     @InjectMocks
     private AuthServiceImpl authService;
@@ -92,11 +99,10 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(appUserRepository.findByEmail(request.getEmail())).thenReturn(Optional.empty());
 
         // Act
-        LoginResponseDTO response = authService.loginUser(request);
-
-        // Assert
-        assertThat(response.getMessage()).isEqualTo("User not found");
-        assertThat(response.getAccessToken()).isNull();
+        // Act & Assert
+        assertThatThrownBy(() -> authService.loginUser(request))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid credentials");
     }
 
     @Test
@@ -114,10 +120,10 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(false);
 
         // Act
-        LoginResponseDTO response = authService.loginUser(request);
-
-        // Assert
-        assertThat(response.getMessage()).isEqualTo("Invalid credentials");
+        // Act & Assert
+        assertThatThrownBy(() -> authService.loginUser(request))
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage("Invalid credentials");
     }
 
     @Test
@@ -134,10 +140,10 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
 
         // Act
-        LoginResponseDTO response = authService.loginUser(request);
-
-        // Assert
-        assertThat(response.getMessage()).isEqualTo("User is inactive");
+        // Act & Assert
+        assertThatThrownBy(() -> authService.loginUser(request))
+                .isInstanceOf(AccountInactiveException.class)
+                .hasMessage("User is inactive");
     }
 
     // --- REFRESH TOKEN TESTS ---
@@ -161,7 +167,12 @@ class AuthServiceImpl_LoginoutRefressTest {
         dbToken.setExpiryDate(Instant.now().plusSeconds(3600));
 
         when(refreshTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(dbToken));
+        when(refreshTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(dbToken));
         when(jwtUtil.generateToken(anyString(), anyString())).thenReturn("new-access-token");
+
+        RefreshToken newToken = new RefreshToken();
+        newToken.setToken("new-refresh-token");
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(newToken);
 
         // Act
         RefreshTokenResponseDTO response = authService.refreshToken(request, "dummy-access-token");
@@ -169,6 +180,8 @@ class AuthServiceImpl_LoginoutRefressTest {
         // Assert
         assertThat(response.getMessage()).isEqualTo("Token refreshed successfully");
         assertThat(response.getAccessToken()).isEqualTo("new-access-token");
+        assertThat(response.getRefreshToken()).isEqualTo("new-refresh-token");
+        verify(tokenBlacklistService).blacklistToken("dummy-access-token");
     }
 
     @Test
@@ -184,11 +197,10 @@ class AuthServiceImpl_LoginoutRefressTest {
         when(refreshTokenRepository.findByToken("expired-token")).thenReturn(Optional.of(dbToken));
 
         // Act
-        RefreshTokenResponseDTO response = authService.refreshToken(request, "dummy-access-token");
-
-        // Assert
-        assertThat(response.getAccessToken()).isNull();
-        assertThat(response.getMessage()).contains("expired");
+        // Act & Assert
+        assertThatThrownBy(() -> authService.refreshToken(request, "dummy-access-token"))
+                .isInstanceOf(InvalidTokenException.class)
+                .hasMessage("Refresh token expired");
     }
 
     @Test
@@ -202,8 +214,8 @@ class AuthServiceImpl_LoginoutRefressTest {
 
         // Act & Assert
         assertThatThrownBy(() -> authService.refreshToken(request, "dummy-access-token"))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("not in database");
+                .isInstanceOf(InvalidTokenException.class)
+                .hasMessageContaining("Refresh token not found");
     }
 
     // --- LOGOUT TESTS ---
@@ -227,6 +239,7 @@ class AuthServiceImpl_LoginoutRefressTest {
         // Assert
         assertThat(dbToken.getRevoked()).isTrue();
         verify(refreshTokenRepository, times(1)).save(dbToken);
+        verify(tokenBlacklistService).blacklistToken("dummy-access-token");
     }
 
     @Test

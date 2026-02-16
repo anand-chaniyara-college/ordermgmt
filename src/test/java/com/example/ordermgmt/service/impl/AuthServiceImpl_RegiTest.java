@@ -40,6 +40,9 @@ class AuthServiceImpl_RegiTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private com.example.ordermgmt.service.TokenBlacklistService tokenBlacklistService;
+
     @InjectMocks
     private AuthServiceImpl authService;
 

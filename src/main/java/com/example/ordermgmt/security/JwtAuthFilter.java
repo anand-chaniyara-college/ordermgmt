@@ -10,19 +10,20 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.example.ordermgmt.repository.TokenBlacklistRepository;
+import com.example.ordermgmt.service.TokenBlacklistService;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Collections;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
-    private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final TokenBlacklistService tokenBlacklistService;
 
-    public JwtAuthFilter(JwtUtil jwtUtil, TokenBlacklistRepository tokenBlacklistRepository) {
+    public JwtAuthFilter(JwtUtil jwtUtil, TokenBlacklistService tokenBlacklistService) {
         this.jwtUtil = jwtUtil;
-        this.tokenBlacklistRepository = tokenBlacklistRepository;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
@@ -34,8 +35,11 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
-            if (tokenBlacklistRepository.findByToken(token).isPresent()) {
-                filterChain.doFilter(request, response);
+            if (tokenBlacklistService.isBlacklisted(token)) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter()
+                        .write("{\"error\": \"Authentication Failed\", \"message\": \"Token is blacklisted\"}");
                 return;
             }
 

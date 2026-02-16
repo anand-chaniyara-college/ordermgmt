@@ -18,8 +18,7 @@ import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.CustomerRepository;
 import com.example.ordermgmt.repository.RefreshTokenRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
-import com.example.ordermgmt.entity.TokenBlacklist;
-import com.example.ordermgmt.repository.TokenBlacklistRepository;
+import com.example.ordermgmt.service.TokenBlacklistService;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.AuthService;
 import org.slf4j.Logger;
@@ -29,7 +28,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Service
@@ -41,7 +39,7 @@ public class AuthServiceImpl implements AuthService {
     private final UserRoleRepository userRoleRepository;
     private final CustomerRepository customerRepository;
     private final RefreshTokenRepository refreshTokenRepository;
-    private final TokenBlacklistRepository tokenBlacklistRepository;
+    private final TokenBlacklistService tokenBlacklistService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
 
@@ -49,14 +47,14 @@ public class AuthServiceImpl implements AuthService {
             UserRoleRepository userRoleRepository,
             CustomerRepository customerRepository,
             RefreshTokenRepository refreshTokenRepository,
-            TokenBlacklistRepository tokenBlacklistRepository,
+            TokenBlacklistService tokenBlacklistService,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.customerRepository = customerRepository;
         this.refreshTokenRepository = refreshTokenRepository;
-        this.tokenBlacklistRepository = tokenBlacklistRepository;
+        this.tokenBlacklistService = tokenBlacklistService;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
     }
@@ -130,10 +128,8 @@ public class AuthServiceImpl implements AuthService {
 
         validateRefreshToken(token);
 
-        // Blacklist existing access token
         blacklistAccessToken(accessToken);
 
-        // Revoke old refresh token (Rotation)
         token.setRevoked(true);
         refreshTokenRepository.save(token);
 
@@ -142,7 +138,6 @@ public class AuthServiceImpl implements AuthService {
             throw new AccountInactiveException("User is inactive");
         }
 
-        // Issue new tokens
         String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
         RefreshToken newRefreshToken = createRefreshToken(user);
 
@@ -153,11 +148,7 @@ public class AuthServiceImpl implements AuthService {
 
     private void blacklistAccessToken(String accessToken) {
         if (accessToken != null && !accessToken.isBlank()) {
-            TokenBlacklist blacklistEntry = new TokenBlacklist();
-            blacklistEntry.setToken(accessToken);
-
-            blacklistEntry.setExpiryDate(Instant.now().plusSeconds(3600));
-            tokenBlacklistRepository.save(blacklistEntry);
+            tokenBlacklistService.blacklistToken(accessToken);
         }
     }
 
@@ -186,10 +177,8 @@ public class AuthServiceImpl implements AuthService {
     public void logoutUser(RefreshTokenRequestDTO request, String accessToken) {
         logger.info("Processing logout request");
 
-        // Blacklist access token
         blacklistAccessToken(accessToken);
 
-        // Revoke refresh token
         refreshTokenRepository.findByToken(request.getRefreshToken()).ifPresent(token -> {
             token.setRevoked(true);
             refreshTokenRepository.save(token);
