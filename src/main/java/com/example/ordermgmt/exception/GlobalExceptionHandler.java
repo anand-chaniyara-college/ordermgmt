@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.HashMap;
 import java.util.Map;
+import jakarta.servlet.http.HttpServletRequest;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -21,41 +22,41 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<RegistrationResponseDTO> handleUserAlreadyExistsException(UserAlreadyExistsException ex) {
-        logger.warn("Registration failed: {}", ex.getMessage());
+    public ResponseEntity<RegistrationResponseDTO> handleUserAlreadyExistsException(UserAlreadyExistsException ex, HttpServletRequest request) {
+        logger.warn("Registration failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(new RegistrationResponseDTO(ex.getMessage()));
     }
 
     @ExceptionHandler(RoleNotFoundException.class)
-    public ResponseEntity<RegistrationResponseDTO> handleRoleNotFoundException(RoleNotFoundException ex) {
-        logger.warn("Registration failed: {}", ex.getMessage());
+    public ResponseEntity<RegistrationResponseDTO> handleRoleNotFoundException(RoleNotFoundException ex, HttpServletRequest request) {
+        logger.warn("Registration failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(new RegistrationResponseDTO(ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidTokenException.class)
-    public ResponseEntity<RefreshTokenResponseDTO> handleInvalidTokenException(InvalidTokenException ex) {
-        logger.warn("Token validation failed: {}", ex.getMessage());
+    public ResponseEntity<RefreshTokenResponseDTO> handleInvalidTokenException(InvalidTokenException ex, HttpServletRequest request) {
+        logger.warn("Token validation failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new RefreshTokenResponseDTO(null, null, null, ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<LoginResponseDTO> handleInvalidCredentialsException(InvalidCredentialsException ex) {
-        logger.warn("Login failed: {}", ex.getMessage());
+    public ResponseEntity<LoginResponseDTO> handleInvalidCredentialsException(InvalidCredentialsException ex, HttpServletRequest request) {
+        logger.warn("Login failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new LoginResponseDTO(null, null, null, ex.getMessage()));
     }
 
     @ExceptionHandler(AccountInactiveException.class)
-    public ResponseEntity<LoginResponseDTO> handleAccountInactiveException(AccountInactiveException ex) {
-        logger.warn("Login failed: {}", ex.getMessage());
+    public ResponseEntity<LoginResponseDTO> handleAccountInactiveException(AccountInactiveException ex, HttpServletRequest request) {
+        logger.warn("Login failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new LoginResponseDTO(null, null, null, ex.getMessage()));
     }
 
     @ExceptionHandler(AuthException.class)
-    public ResponseEntity<Map<String, String>> handleAuthException(AuthException ex) {
-        logger.warn("Authentication failed: {}", ex.getMessage());
+    public ResponseEntity<Map<String, String>> handleAuthException(AuthException ex, HttpServletRequest request) {
+        logger.warn("Authentication failed at {}: {}", request.getRequestURI(), ex.getMessage());
         Map<String, String> response = new HashMap<>();
         response.put("error", "Authentication Failed");
         response.put("message", ex.getMessage());
@@ -63,21 +64,21 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex) {
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-        logger.warn("Validation failed: {}", errors);
+        logger.warn("Validation failed at {}: {}", request.getRequestURI(), errors);
         return ResponseEntity.badRequest().body(errors);
     }
 
     // Fallback for unexpected exceptions
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex) {
-        logger.error("Unexpected error occurred", ex);
+    public ResponseEntity<Map<String, String>> handleGlobalException(Exception ex, HttpServletRequest request) {
+        logger.error("Unexpected error occurred at {}", request.getRequestURI(), ex);
         Map<String, String> response = new HashMap<>();
         response.put("error", "Internal Server Error");
         response.put("message", "An unexpected error occurred. Please contact support.");
