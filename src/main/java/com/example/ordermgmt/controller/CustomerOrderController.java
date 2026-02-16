@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -24,7 +25,7 @@ public class CustomerOrderController {
 
     @PostMapping
     @Operation(summary = "Place a New Order", description = "Create a new shopping order by providing the items and shipping information")
-    public ResponseEntity<OrderDTO> createOrder(@RequestBody OrderDTO request, Authentication authentication) {
+    public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request, Authentication authentication) {
         String email = authentication.getName();
         logger.info("Customer order creation request: {}", email);
         return ResponseEntity.ok(orderService.createOrder(request, email));

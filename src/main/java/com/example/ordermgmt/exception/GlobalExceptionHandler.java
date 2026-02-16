@@ -22,33 +22,38 @@ public class GlobalExceptionHandler {
     private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(UserAlreadyExistsException.class)
-    public ResponseEntity<RegistrationResponseDTO> handleUserAlreadyExistsException(UserAlreadyExistsException ex, HttpServletRequest request) {
+    public ResponseEntity<RegistrationResponseDTO> handleUserAlreadyExistsException(UserAlreadyExistsException ex,
+            HttpServletRequest request) {
         logger.warn("Registration failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(new RegistrationResponseDTO(ex.getMessage()));
     }
 
     @ExceptionHandler(RoleNotFoundException.class)
-    public ResponseEntity<RegistrationResponseDTO> handleRoleNotFoundException(RoleNotFoundException ex, HttpServletRequest request) {
+    public ResponseEntity<RegistrationResponseDTO> handleRoleNotFoundException(RoleNotFoundException ex,
+            HttpServletRequest request) {
         logger.warn("Registration failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.badRequest().body(new RegistrationResponseDTO(ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidTokenException.class)
-    public ResponseEntity<RefreshTokenResponseDTO> handleInvalidTokenException(InvalidTokenException ex, HttpServletRequest request) {
+    public ResponseEntity<RefreshTokenResponseDTO> handleInvalidTokenException(InvalidTokenException ex,
+            HttpServletRequest request) {
         logger.warn("Token validation failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
                 .body(new RefreshTokenResponseDTO(null, null, null, ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
-    public ResponseEntity<LoginResponseDTO> handleInvalidCredentialsException(InvalidCredentialsException ex, HttpServletRequest request) {
+    public ResponseEntity<LoginResponseDTO> handleInvalidCredentialsException(InvalidCredentialsException ex,
+            HttpServletRequest request) {
         logger.warn("Login failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new LoginResponseDTO(null, null, null, ex.getMessage()));
     }
 
     @ExceptionHandler(AccountInactiveException.class)
-    public ResponseEntity<LoginResponseDTO> handleAccountInactiveException(AccountInactiveException ex, HttpServletRequest request) {
+    public ResponseEntity<LoginResponseDTO> handleAccountInactiveException(AccountInactiveException ex,
+            HttpServletRequest request) {
         logger.warn("Login failed at {}: {}", request.getRequestURI(), ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                 .body(new LoginResponseDTO(null, null, null, ex.getMessage()));
@@ -63,8 +68,49 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleOrderNotFoundException(OrderNotFoundException ex,
+            HttpServletRequest request) {
+        logger.warn("Order not found at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Order Not Found");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(InvalidOrderTransitionException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidOrderTransitionException(InvalidOrderTransitionException ex,
+            HttpServletRequest request) {
+        logger.warn("Invalid order transition at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Invalid Status Transition");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ResponseEntity<Map<String, String>> handleInsufficientStockException(InsufficientStockException ex,
+            HttpServletRequest request) {
+        logger.warn("Insufficient stock at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Insufficient Stock");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.badRequest().body(response);
+    }
+
+    @ExceptionHandler(InvalidOperationException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidOperationException(InvalidOperationException ex,
+            HttpServletRequest request) {
+        logger.warn("Invalid operation at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Invalid Operation");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.badRequest().body(response);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex, HttpServletRequest request) {
+    public ResponseEntity<Map<String, String>> handleValidationExceptions(MethodArgumentNotValidException ex,
+            HttpServletRequest request) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
