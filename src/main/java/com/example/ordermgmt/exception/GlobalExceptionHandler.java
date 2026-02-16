@@ -78,6 +78,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
 
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, String>> handleResourceNotFoundException(ResourceNotFoundException ex,
+            HttpServletRequest request) {
+        logger.warn("Resource not found at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Resource Not Found");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
     @ExceptionHandler(InvalidOrderTransitionException.class)
     public ResponseEntity<Map<String, String>> handleInvalidOrderTransitionException(InvalidOrderTransitionException ex,
             HttpServletRequest request) {

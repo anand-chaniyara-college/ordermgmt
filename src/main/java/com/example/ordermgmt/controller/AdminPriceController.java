@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 
 import java.util.List;
 
@@ -26,28 +27,30 @@ public class AdminPriceController {
     @GetMapping
     @Operation(summary = "View Price List", description = "Get the current selling price and cost for all available products")
     public ResponseEntity<List<AdminPricingDTO>> getAllPrices() {
-        logger.info("Admin request to get all price records");
+        logger.info("Received request to get all price records");
         return ResponseEntity.ok(adminPriceService.getAllPrices());
     }
 
     @GetMapping("/{itemId}")
-    @Operation(summary = "Get Price History", description = "Track how the price of a specific item has changed over time")
-    public ResponseEntity<List<AdminPricingDTO>> getPriceHistory(@PathVariable String itemId) {
-        logger.info("Admin request to get price history for item: {}", itemId);
-        return ResponseEntity.ok(adminPriceService.getPriceHistory(itemId));
+    @Operation(summary = "Get Price Details", description = "Get the current price details for a specific item")
+    public ResponseEntity<AdminPricingDTO> getPrice(@PathVariable String itemId) {
+        logger.info("Received request to get price details for item: {}", itemId);
+        return ResponseEntity.ok(adminPriceService.getPrice(itemId));
     }
 
     @PostMapping
     @Operation(summary = "Create New Price Record", description = "Set an initial price for a newly added product")
-    public ResponseEntity<String> addPrice(@RequestBody AdminPricingDTO pricingDTO) {
-        logger.info("Admin request to add a new price for item: {}", pricingDTO.getItemId());
-        return ResponseEntity.ok(adminPriceService.addPrice(pricingDTO));
+    public ResponseEntity<String> addPrice(@Valid @RequestBody AdminPricingDTO pricingDTO) {
+        logger.info("Received request to add a new price for item: {}", pricingDTO.getItemId());
+        adminPriceService.addPrice(pricingDTO);
+        return ResponseEntity.ok("Price record added successfully.");
     }
 
     @PutMapping
     @Operation(summary = "Update Existing Price", description = "Adjust the current price of a product currently on sale")
-    public ResponseEntity<String> updatePrice(@RequestBody AdminPricingDTO pricingDTO) {
-        logger.info("Admin request to update existing price record");
-        return ResponseEntity.ok(adminPriceService.updatePrice(pricingDTO));
+    public ResponseEntity<String> updatePrice(@Valid @RequestBody AdminPricingDTO pricingDTO) {
+        logger.info("Received request to update price for item: {}", pricingDTO.getItemId());
+        adminPriceService.updatePrice(pricingDTO);
+        return ResponseEntity.ok("Price updated successfully for item: " + pricingDTO.getItemId());
     }
 }
