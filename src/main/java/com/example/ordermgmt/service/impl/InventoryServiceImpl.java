@@ -2,16 +2,20 @@ package com.example.ordermgmt.service.impl;
 
 import com.example.ordermgmt.dto.InventoryItemDTO;
 import com.example.ordermgmt.entity.InventoryItem;
+import com.example.ordermgmt.exception.InvalidOperationException;
+import com.example.ordermgmt.exception.ResourceNotFoundException;
 import com.example.ordermgmt.repository.InventoryItemRepository;
 import com.example.ordermgmt.service.InventoryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class InventoryServiceImpl implements InventoryService {
 
     private static final Logger logger = LoggerFactory.getLogger(InventoryServiceImpl.class);
@@ -22,80 +26,93 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<InventoryItemDTO> getAllInventory() {
-        logger.info("Fetching all inventory items");
+        logger.info("Processing getAllInventory for all items");
         List<InventoryItem> entities = inventoryItemRepository.findAll();
-        return entities.stream()
+        List<InventoryItemDTO> result = entities.stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+        logger.info("getAllInventory completed successfully. Retrieved {} items", result.size());
+        return result;
     }
 
     @Override
     public String addInventoryItem(InventoryItemDTO itemDTO) {
-        logger.info("Adding new inventory item: {}", itemDTO.getItemId());
+        logger.info("Processing addInventoryItem for item: {}", itemDTO.getItemId());
 
         if (inventoryItemRepository.existsById(itemDTO.getItemId())) {
-            logger.warn("Item already exists: {}", itemDTO.getItemId());
-            return "Item ID already exists";
+            logger.warn("Skipping addInventoryItem for item: {} - Item ID already exists", itemDTO.getItemId());
+            throw new InvalidOperationException("Item with ID " + itemDTO.getItemId() + " already exists");
         }
 
         InventoryItem item = convertToEntity(itemDTO);
         inventoryItemRepository.save(item);
 
-        logger.info("Item added successfully: {}", itemDTO.getItemId());
+        logger.info("addInventoryItem completed successfully for item: {}", itemDTO.getItemId());
         return "Item added successfully";
     }
 
     @Override
     public String updateInventoryItem(String itemId, InventoryItemDTO itemDTO) {
-        logger.info("Updating inventory item: {}", itemId);
+        logger.info("Processing updateInventoryItem for item: {}", itemId);
 
-        return inventoryItemRepository.findById(itemId).map(existingItem -> {
-            if (!itemId.equals(itemDTO.getItemId())) {
-                throw new IllegalArgumentException("Item ID cannot be changed");
-            }
+        if (!itemId.equals(itemDTO.getItemId())) {
+            logger.warn("Skipping updateInventoryItem for item: {} - ID mismatch in path and body", itemId);
+            throw new InvalidOperationException("Item ID in path must match Item ID in body");
+        }
 
-            existingItem.setItemName(itemDTO.getItemName());
-            existingItem.setAvailableStock(itemDTO.getAvailableStock());
-            existingItem.setReservedStock(itemDTO.getReservedStock());
+        InventoryItem existingItem = inventoryItemRepository.findById(itemId)
+                .orElseThrow(() -> {
+                    logger.warn("Skipping updateInventoryItem for item: {} - Item not found", itemId);
+                    return new ResourceNotFoundException("Inventory Item not found with ID: " + itemId);
+                });
 
-            inventoryItemRepository.save(existingItem);
-            logger.info("Item updated successfully: {}", itemDTO.getItemId());
-            return "Item updated successfully";
+        existingItem.setItemName(itemDTO.getItemName());
+        existingItem.setAvailableStock(itemDTO.getAvailableStock());
+        existingItem.setReservedStock(itemDTO.getReservedStock());
 
-        }).orElseGet(() -> {
-            logger.warn("Item not found for update: {}", itemId);
-            return "Item not found";
-        });
+        inventoryItemRepository.save(existingItem);
+        logger.info("updateInventoryItem completed successfully for item: {}", itemId);
+        return "Item updated successfully";
     }
 
     @Override
+    @Transactional(readOnly = true)
     public InventoryItemDTO getInventoryItem(String itemId) {
-        logger.info("Fetching single inventory item: {}", itemId);
+        logger.info("Processing getInventoryItem for item: {}", itemId);
 
-        return inventoryItemRepository.findById(itemId)
-                .map(this::convertToDTO)
-                .orElse(null);
+        InventoryItem item = inventoryItemRepository.findById(itemId)
+                .orElseThrow(() -> {
+                    logger.warn("Skipping getInventoryItem for item: {} - Item not found", itemId);
+                    return new ResourceNotFoundException("Inventory Item not found with ID: " + itemId);
+                });
+
+        InventoryItemDTO dto = convertToDTO(item);
+        logger.info("getInventoryItem completed successfully for item: {}", itemId);
+        return dto;
     }
 
     @Override
     public String deleteInventoryItem(String itemId) {
-        logger.info("Deleting inventory item: {}", itemId);
+        logger.info("Processing deleteInventoryItem for item: {}", itemId);
 
-        if (inventoryItemRepository.existsById(itemId)) {
-            inventoryItemRepository.deleteById(itemId);
-            logger.info("Item deleted successfully: {}", itemId);
-            return "Item deleted successfully";
-        } else {
-            logger.warn("Item not found for deletion: {}", itemId);
-            return "Item not found";
+        if (!inventoryItemRepository.existsById(itemId)) {
+            logger.warn("Skipping deleteInventoryItem for item: {} - Item not found", itemId);
+            throw new ResourceNotFoundException("Inventory Item not found with ID: " + itemId);
         }
+
+        inventoryItemRepository.deleteById(itemId);
+        logger.info("deleteInventoryItem completed successfully for item: {}", itemId);
+        return "Item deleted successfully";
     }
 
     private InventoryItemDTO convertToDTO(InventoryItem item) {
-        return new InventoryItemDTO(item.getItemId(), item.getItemName(), item.getAvailableStock(),
-                item.getReservedStock(),
-                item.getPricingCatalog() != null ? item.getPricingCatalog().getUnitPrice() : null);
+        return new InventoryItemDTO(
+                item.getItemId(),
+                item.getItemName(),
+                item.getAvailableStock(),
+                item.getReservedStock());
     }
 
     private InventoryItem convertToEntity(InventoryItemDTO dto) {
