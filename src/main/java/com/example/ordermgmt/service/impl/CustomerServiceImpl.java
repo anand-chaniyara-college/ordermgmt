@@ -3,12 +3,14 @@ package com.example.ordermgmt.service.impl;
 import com.example.ordermgmt.dto.CustomerProfileDTO;
 import com.example.ordermgmt.entity.AppUser;
 import com.example.ordermgmt.entity.Customer;
+import com.example.ordermgmt.exception.ResourceNotFoundException;
 import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.CustomerRepository;
 import com.example.ordermgmt.service.CustomerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -26,17 +28,23 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public CustomerProfileDTO getCustomerProfile(String email) {
-        logger.info("Fetching customer profile for: {}", email);
+        logger.info("Processing getCustomerProfile for customer: {}", email);
 
         AppUser user = appUserRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> {
+                    logger.error("getCustomerProfile failed for customer: {}: User not found", email);
+                    return new ResourceNotFoundException("User not found with email: " + email);
+                });
 
         return customerRepository.findByAppUser(user)
                 .map(this::convertToDTO)
                 .orElseGet(() -> {
-                    logger.warn("Customer record not found for user: {}", email);
-                    // Return empty profile with just email if not yet created
+                    logger.warn(
+                            "Processing getCustomerProfile for customer: {} - Customer record not found, returning default",
+                            email);
+
                     CustomerProfileDTO dto = new CustomerProfileDTO();
                     dto.setEmail(email);
                     return dto;
@@ -44,30 +52,39 @@ public class CustomerServiceImpl implements CustomerService {
     }
 
     @Override
+    @Transactional
     public String updateCustomerProfile(String email, CustomerProfileDTO profileDTO) {
-        logger.info("Updating customer profile for: {}", email);
+        logger.info("Processing updateCustomerProfile for customer: {}", email);
 
         AppUser user = appUserRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        Customer customer = customerRepository.findByAppUser(user)
-                .orElseGet(() -> {
-                    logger.info("Creating new customer record for user: {}", email);
-                    Customer newCustomer = new Customer();
-                    newCustomer.setCustomerId(UUID.randomUUID().toString());
-                    newCustomer.setAppUser(user);
-                    return newCustomer;
+                .orElseThrow(() -> {
+                    logger.error("updateCustomerProfile failed for customer: {}: User not found", email);
+                    return new ResourceNotFoundException("User not found with email: " + email);
                 });
 
-        customer.setFirstName(profileDTO.getFirstName());
-        customer.setLastName(profileDTO.getLastName());
-        customer.setContactNo(profileDTO.getContactNo());
-        customer.setAddress(profileDTO.getAddress());
+        Customer customer = customerRepository.findByAppUser(user)
+                .orElseGet(() -> createNewCustomer(user));
 
+        updateCustomerFields(customer, profileDTO);
         customerRepository.save(customer);
 
-        logger.info("Customer profile updated successfully for: {}", email);
+        logger.info("updateCustomerProfile completed successfully for customer: {}", email);
         return "Profile updated successfully";
+    }
+
+    private Customer createNewCustomer(AppUser user) {
+        logger.info("Processing createNewCustomer for customer: {}", user.getEmail());
+        Customer newCustomer = new Customer();
+        newCustomer.setCustomerId(UUID.randomUUID().toString());
+        newCustomer.setAppUser(user);
+        return newCustomer;
+    }
+
+    private void updateCustomerFields(Customer customer, CustomerProfileDTO dto) {
+        customer.setFirstName(dto.getFirstName());
+        customer.setLastName(dto.getLastName());
+        customer.setContactNo(dto.getContactNo());
+        customer.setAddress(dto.getAddress());
     }
 
     private CustomerProfileDTO convertToDTO(Customer customer) {

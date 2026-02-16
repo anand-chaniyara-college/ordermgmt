@@ -2,16 +2,16 @@ package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.service.OrderService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 
-import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -27,31 +27,39 @@ public class CustomerOrderController {
     @Operation(summary = "Place a New Order", description = "Create a new shopping order by providing the items and shipping information")
     public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request, Authentication authentication) {
         String email = authentication.getName();
-        logger.info("Customer order creation request: {}", email);
-        return ResponseEntity.ok(orderService.createOrder(request, email));
+        logger.info("Processing createOrder for customer: {}", email);
+        OrderDTO order = orderService.createOrder(request, email);
+        logger.info("createOrder completed successfully for customer: {}", email);
+        return ResponseEntity.ok(order);
     }
 
     @GetMapping
     @Operation(summary = "View My Order History", description = "Get a complete record of all the orders you have placed in the past")
     public ResponseEntity<List<OrderDTO>> getMyOrders(Authentication authentication) {
         String email = authentication.getName();
-        logger.info("Customer order history request: {}", email);
-        return ResponseEntity.ok(orderService.getCustomerOrders(email));
+        logger.info("Processing getMyOrders for customer: {}", email);
+        List<OrderDTO> orders = orderService.getCustomerOrders(email);
+        logger.info("getMyOrders completed successfully for customer: {}", email);
+        return ResponseEntity.ok(orders);
     }
 
     @GetMapping("/{orderId}")
     @Operation(summary = "Get Order Details", description = "See the items, status, and total cost for a specific order by its ID")
     public ResponseEntity<OrderDTO> getMyOrderById(@PathVariable String orderId, Authentication authentication) {
         String email = authentication.getName();
-        logger.info("Customer order detail request: {} for order: {}", email, orderId);
-        return ResponseEntity.ok(orderService.getCustomerOrderById(orderId, email));
+        logger.info("Processing getMyOrderById for customer: {} orderId: {}", email, orderId);
+        OrderDTO order = orderService.getCustomerOrderById(orderId, email);
+        logger.info("getMyOrderById completed successfully for customer: {} orderId: {}", email, orderId);
+        return ResponseEntity.ok(order);
     }
 
     @PutMapping("/{orderId}/cancel")
     @Operation(summary = "Cancel an Order", description = "Stop a pending order from being processed if you have changed your mind")
     public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable String orderId, Authentication authentication) {
         String email = authentication.getName();
-        logger.info("Customer order cancel request: {} for order: {}", email, orderId);
-        return ResponseEntity.ok(orderService.cancelOrder(orderId, email));
+        logger.info("Processing cancelMyOrder for customer: {} orderId: {}", email, orderId);
+        OrderDTO order = orderService.cancelOrder(orderId, email);
+        logger.info("cancelMyOrder completed successfully for customer: {} orderId: {}", email, orderId);
+        return ResponseEntity.ok(order);
     }
 }
