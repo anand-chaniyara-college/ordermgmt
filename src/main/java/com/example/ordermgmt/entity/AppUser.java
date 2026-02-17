@@ -54,4 +54,19 @@ public class AppUser {
     @LastModifiedBy
     @Column(name = "updatedby")
     private String updatedBy;
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        AppUser appUser = (AppUser) o;
+        return userId != null && userId.equals(appUser.userId);
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 }

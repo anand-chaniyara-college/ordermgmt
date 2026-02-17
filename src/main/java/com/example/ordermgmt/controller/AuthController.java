@@ -30,18 +30,18 @@ public class AuthController {
     @PostMapping("/register")
     @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN)")
     public ResponseEntity<RegistrationResponseDTO> register(@Valid @RequestBody RegistrationRequestDTO request) {
-        logger.info("Received registration request for email: {}", request.getEmail());
+        logger.info("Processing registration for email: {}", request.getEmail());
         authService.registerUser(request);
-        logger.info("Registration successful for email: {}", request.getEmail());
+        logger.info("Registration completed successfully for email: {}", request.getEmail());
         return ResponseEntity.ok(new RegistrationResponseDTO("Registration successful"));
     }
 
     @PostMapping("/login")
     @Operation(summary = "Sign In", description = "Log into your account using your email and password to get an access token")
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
-        logger.info("Received login request for email: {}", request.getEmail());
+        logger.info("Processing login for email: {}", request.getEmail());
         LoginResponseDTO response = authService.loginUser(request);
-        logger.info("Login successful for email: {}", request.getEmail());
+        logger.info("Login completed successfully for email: {}", request.getEmail());
         return ResponseEntity.ok(response);
     }
 
@@ -49,10 +49,10 @@ public class AuthController {
     @Operation(summary = "Refresh Security Token", description = "Extend your session by generating a new access token using your refresh token")
     public ResponseEntity<RefreshTokenResponseDTO> refreshToken(@Valid @RequestBody RefreshTokenRequestDTO request,
             @RequestHeader("Authorization") String authHeader) {
-        logger.info("Received refresh token request");
+        logger.info("Processing refresh token request");
         String accessToken = authHeader.replace("Bearer ", "");
         RefreshTokenResponseDTO response = authService.refreshToken(request, accessToken);
-        logger.info("Token refreshed successfully");
+        logger.info("Token refresh completed successfully");
         return ResponseEntity.ok(response);
     }
 
@@ -60,9 +60,10 @@ public class AuthController {
     @Operation(summary = "Sign Out", description = "End your current session and invalidate your security token")
     public ResponseEntity<String> logout(@Valid @RequestBody RefreshTokenRequestDTO request,
             @RequestHeader("Authorization") String authHeader) {
-        logger.info("Received logout request");
+        logger.info("Processing logout request");
         String accessToken = authHeader.replace("Bearer ", "");
         authService.logoutUser(request, accessToken);
+        logger.info("Logout completed successfully");
         return ResponseEntity.ok("Logged out successfully");
     }
 }

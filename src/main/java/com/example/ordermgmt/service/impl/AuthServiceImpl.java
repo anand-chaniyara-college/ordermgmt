@@ -96,6 +96,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public LoginResponseDTO loginUser(LoginRequestDTO request) {
         logger.info("Processing login for email: {}", request.getEmail());
 
@@ -120,6 +121,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request, String accessToken) {
         logger.info("Processing refresh token request");
 
@@ -174,6 +176,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void logoutUser(RefreshTokenRequestDTO request, String accessToken) {
         logger.info("Processing logout request");
 
