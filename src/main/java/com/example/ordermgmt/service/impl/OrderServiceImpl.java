@@ -3,10 +3,21 @@ package com.example.ordermgmt.service.impl;
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.dto.OrderItemDTO;
 import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
-import com.example.ordermgmt.entity.*;
+import com.example.ordermgmt.entity.Customer;
+import com.example.ordermgmt.entity.InventoryItem;
+import com.example.ordermgmt.entity.Orders;
+import com.example.ordermgmt.entity.OrderItem;
+import com.example.ordermgmt.entity.OrderStatusLookup;
 import com.example.ordermgmt.enums.OrderStatus;
-import com.example.ordermgmt.exception.*;
-import com.example.ordermgmt.repository.*;
+import com.example.ordermgmt.exception.InsufficientStockException;
+import com.example.ordermgmt.exception.InvalidOperationException;
+import com.example.ordermgmt.exception.InvalidOrderTransitionException;
+import com.example.ordermgmt.exception.OrderNotFoundException;
+import com.example.ordermgmt.repository.CustomerRepository;
+import com.example.ordermgmt.repository.InventoryItemRepository;
+import com.example.ordermgmt.repository.OrderItemRepository;
+import com.example.ordermgmt.repository.OrdersRepository;
+import com.example.ordermgmt.repository.OrderStatusLookupRepository;
 import com.example.ordermgmt.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -34,7 +45,7 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderDTO createOrder(OrderDTO request, String email) {
-        logger.info("Processing createOrder for customer: {}", email);
+        logger.info("Processing createOrder for Customer: {}", email);
 
         Customer customer = validateAndGetCustomer(email);
         validateCustomerProfile(customer);
@@ -54,23 +65,25 @@ public class OrderServiceImpl implements OrderService {
 
         BigDecimal total = calculateTotal(itemDTOs);
 
-        logger.info("createOrder completed successfully for customer: {}", email);
+        logger.info("createOrder completed successfully for Customer: {}", email);
         return convertToDTO(order, itemDTOs, total);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderDTO> getCustomerOrders(String email) {
-        logger.info("Processing getCustomerOrders for: {}", email);
+        logger.info("Processing getCustomerOrders for Customer: {}", email);
         List<OrderDTO> orders = ordersRepository.findByCustomerAppUserEmail(email).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
-        logger.info("getCustomerOrders completed successfully for: {}", email);
+        logger.info("getCustomerOrders completed successfully for Customer: {}", email);
         return orders;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderDTO getCustomerOrderById(String orderId, String email) {
-        logger.info("Processing getCustomerOrderById for order: {}, email: {}", orderId, email);
+        logger.info("Processing getCustomerOrderById for Order: {}, Customer: {}", orderId, email);
         Orders order = getOrderOrThrow(orderId);
 
         if (!order.getCustomer().getAppUser().getEmail().equals(email)) {
@@ -78,44 +91,46 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOperationException("Access denied");
         }
 
-        logger.info("getCustomerOrderById completed successfully for order: {}", orderId);
+        logger.info("getCustomerOrderById completed successfully for Order: {}", orderId);
         return convertToDTO(order);
     }
 
     @Override
     @Transactional
     public OrderDTO cancelOrder(String orderId, String email) {
-        logger.info("Processing cancelOrder for order: {}, user: {}", orderId, email);
+        logger.info("Processing cancelOrder for Order: {}, Customer: {}", orderId, email);
         Orders order = getOrderOrThrow(orderId);
 
         validateOrderOwnership(order, email);
         validateOrderCancellation(order);
 
         OrderStatusLookup cancelledStatus = getStatusOrThrow(OrderStatus.CANCELLED.name());
-        handleInventoryUpdate(order, order.getStatus().getStatusName(), OrderStatus.CANCELLED.name());
+        handleInventoryUpdate(order, OrderStatus.valueOf(order.getStatus().getStatusName()), OrderStatus.CANCELLED);
 
         order.setStatus(cancelledStatus);
         ordersRepository.save(order);
 
-        logger.info("cancelOrder completed successfully for order: {}", orderId);
+        logger.info("cancelOrder completed successfully for Order: {}", orderId);
         return convertToDTO(order);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<OrderDTO> getAllOrders() {
-        logger.info("Processing getAllOrders");
+        logger.info("Processing getAllOrders for Admin");
         List<OrderDTO> orders = ordersRepository.findAll().stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
-        logger.info("getAllOrders completed successfully");
+        logger.info("getAllOrders completed successfully for Admin");
         return orders;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public OrderDTO getOrderById(String orderId) {
-        logger.info("Processing getOrderById for order: {}", orderId);
+        logger.info("Processing getOrderById for Order: {}", orderId);
         Orders order = getOrderOrThrow(orderId);
-        logger.info("getOrderById completed successfully for order: {}", orderId);
+        logger.info("getOrderById completed successfully for Order: {}", orderId);
         return convertToDTO(order);
     }
 
@@ -123,21 +138,22 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderDTO updateOrderStatus(String orderId, OrderStatusUpdateDTO statusUpdate) {
         String newStatusName = statusUpdate.getNewStatus().trim().toUpperCase();
-        logger.info("Processing updateOrderStatus for order: {} to {}", orderId, newStatusName);
+        logger.info("Processing updateOrderStatus for Order: {} to {}", orderId, newStatusName);
 
         Orders order = getOrderOrThrow(orderId);
-        String currentStatus = order.getStatus().getStatusName().trim().toUpperCase();
+        OrderStatus currentStatus = OrderStatus.valueOf(order.getStatus().getStatusName());
+        OrderStatus nextStatus = OrderStatus.valueOf(newStatusName);
 
-        validateAdminTransition(currentStatus, newStatusName);
+        validateAdminTransition(currentStatus, nextStatus);
 
-        OrderStatusLookup nextStatus = getStatusOrThrow(newStatusName);
+        OrderStatusLookup nextStatusLookup = getStatusOrThrow(newStatusName);
 
-        handleInventoryUpdate(order, currentStatus, newStatusName);
+        handleInventoryUpdate(order, currentStatus, nextStatus);
 
-        order.setStatus(nextStatus);
+        order.setStatus(nextStatusLookup);
         ordersRepository.save(order);
 
-        logger.info("updateOrderStatus completed successfully for order: {}", orderId);
+        logger.info("updateOrderStatus completed successfully for Order: {}", orderId);
         return convertToDTO(order);
     }
 
@@ -239,21 +255,28 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void validateAdminTransition(String current, String next) {
+    private void validateAdminTransition(OrderStatus current, OrderStatus next) {
         boolean valid = false;
 
-        if (current.equals(OrderStatus.PENDING.name())) {
-            if (next.equals(OrderStatus.CONFIRMED.name()) || next.equals(OrderStatus.CANCELLED.name()))
-                valid = true;
-        } else if (current.equals(OrderStatus.CONFIRMED.name())) {
-            if (next.equals(OrderStatus.PROCESSING.name()) || next.equals(OrderStatus.CANCELLED.name()))
-                valid = true;
-        } else if (current.equals(OrderStatus.PROCESSING.name())) {
-            if (next.equals(OrderStatus.SHIPPED.name()) || next.equals(OrderStatus.CANCELLED.name()))
-                valid = true;
-        } else if (current.equals(OrderStatus.SHIPPED.name())) {
-            if (next.equals(OrderStatus.DELIVERED.name()))
-                valid = true;
+        switch (current) {
+            case PENDING:
+                if (next == OrderStatus.CONFIRMED || next == OrderStatus.CANCELLED)
+                    valid = true;
+                break;
+            case CONFIRMED:
+                if (next == OrderStatus.PROCESSING || next == OrderStatus.CANCELLED)
+                    valid = true;
+                break;
+            case PROCESSING:
+                if (next == OrderStatus.SHIPPED || next == OrderStatus.CANCELLED)
+                    valid = true;
+                break;
+            case SHIPPED:
+                if (next == OrderStatus.DELIVERED)
+                    valid = true;
+                break;
+            default:
+                break;
         }
 
         if (!valid) {
@@ -262,10 +285,10 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    private void handleInventoryUpdate(Orders order, String currentStatus, String nextStatus) {
+    private void handleInventoryUpdate(Orders order, OrderStatus currentStatus, OrderStatus nextStatus) {
         List<OrderItem> items = orderItemRepository.findByOrderOrderId(order.getOrderId());
 
-        if (nextStatus.equals(OrderStatus.CONFIRMED.name()) && currentStatus.equals(OrderStatus.PENDING.name())) {
+        if (nextStatus == OrderStatus.CONFIRMED && currentStatus == OrderStatus.PENDING) {
             for (OrderItem item : items) {
                 InventoryItem inv = item.getInventoryItem();
                 if (inv.getAvailableStock() < item.getQuantity()) {
@@ -276,17 +299,15 @@ public class OrderServiceImpl implements OrderService {
                 inv.setReservedStock(inv.getReservedStock() + item.getQuantity());
                 inventoryRepository.save(inv);
             }
-        } else if (nextStatus.equals(OrderStatus.CANCELLED.name()) &&
-                (currentStatus.equals(OrderStatus.CONFIRMED.name())
-                        || currentStatus.equals(OrderStatus.PROCESSING.name()))) {
+        } else if (nextStatus == OrderStatus.CANCELLED &&
+                (currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING)) {
             for (OrderItem item : items) {
                 InventoryItem inv = item.getInventoryItem();
                 inv.setAvailableStock(inv.getAvailableStock() + item.getQuantity());
                 inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
                 inventoryRepository.save(inv);
             }
-        } else if (nextStatus.equals(OrderStatus.SHIPPED.name())
-                && currentStatus.equals(OrderStatus.PROCESSING.name())) {
+        } else if (nextStatus == OrderStatus.SHIPPED && currentStatus == OrderStatus.PROCESSING) {
             for (OrderItem item : items) {
                 InventoryItem inv = item.getInventoryItem();
                 inv.setReservedStock(inv.getReservedStock() - item.getQuantity());

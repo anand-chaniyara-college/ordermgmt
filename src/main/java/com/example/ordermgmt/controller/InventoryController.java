@@ -27,43 +27,46 @@ public class InventoryController {
     @GetMapping
     @Operation(summary = "View Full Inventory", description = "See the list of all products currently tracked in your warehouse")
     public ResponseEntity<List<InventoryItemDTO>> getAllInventory() {
-        logger.info("Received request to get all inventory items");
-        return ResponseEntity.ok(inventoryService.getAllInventory());
+        logger.info("Processing getAllInventory for Admin");
+        List<InventoryItemDTO> inventory = inventoryService.getAllInventory();
+        logger.info("getAllInventory completed successfully for Admin");
+        return ResponseEntity.ok(inventory);
     }
 
     @GetMapping("/{itemId}")
     @Operation(summary = "Check Stock for Item", description = "Check how many units of a specific product are currently in stock")
     public ResponseEntity<InventoryItemDTO> getInventoryItem(@PathVariable String itemId) {
-        logger.info("Received request to get inventory item: {}", itemId);
+        logger.info("Processing getInventoryItem for Item: {}", itemId);
         InventoryItemDTO item = inventoryService.getInventoryItem(itemId);
+        logger.info("getInventoryItem completed successfully for Item: {}", itemId);
         return ResponseEntity.ok(item);
     }
 
     @PostMapping
     @Operation(summary = "Add New Product to Stock", description = "Register a brand new item in the inventory system")
     public ResponseEntity<String> addInventoryItem(@Valid @RequestBody InventoryItemDTO item) {
-        logger.info("Received request to add inventory item: {}", item.getItemId());
+        logger.info("Processing addInventoryItem for Item: {}", item.getItemId());
         String result = inventoryService.addInventoryItem(item);
-        logger.info("Inventory item added successfully: {}", item.getItemId());
-        return ResponseEntity.ok(result);
+        logger.info("addInventoryItem completed successfully for Item: {}", item.getItemId());
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(result);
     }
 
     @PutMapping("/{itemId}")
     @Operation(summary = "Update Stock Quantity", description = "Report new stock arrivals or manual adjustments for an item")
     public ResponseEntity<String> updateInventoryItem(@PathVariable String itemId,
             @Valid @RequestBody InventoryItemDTO item) {
-        logger.info("Received request to update inventory item: {}", itemId);
+        logger.info("Processing updateInventoryItem for Item: {}", itemId);
         String result = inventoryService.updateInventoryItem(itemId, item);
-        logger.info("Inventory item updated successfully: {}", itemId);
+        logger.info("updateInventoryItem completed successfully for Item: {}", itemId);
         return ResponseEntity.ok(result);
     }
 
     @DeleteMapping("/{itemId}")
     @Operation(summary = "Remove Product from System", description = "Completely remove an item from being tracked in the inventory")
-    public ResponseEntity<String> deleteInventoryItem(@PathVariable String itemId) {
-        logger.info("Received request to delete inventory item: {}", itemId);
-        String result = inventoryService.deleteInventoryItem(itemId);
-        logger.info("Inventory item deleted successfully: {}", itemId);
-        return ResponseEntity.ok(result);
+    public ResponseEntity<Void> deleteInventoryItem(@PathVariable String itemId) {
+        logger.info("Processing deleteInventoryItem for Item: {}", itemId);
+        inventoryService.deleteInventoryItem(itemId);
+        logger.info("deleteInventoryItem completed successfully for Item: {}", itemId);
+        return ResponseEntity.noContent().build();
     }
 }

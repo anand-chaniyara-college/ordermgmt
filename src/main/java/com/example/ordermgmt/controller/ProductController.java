@@ -28,7 +28,9 @@ public class ProductController {
     @GetMapping
     @Operation(summary = "Browse Products", description = "Get a list of all products currently available for purchase")
     public ResponseEntity<List<ProductDTO>> getAvailableProducts() {
-        logger.info("Received request to get available products");
-        return ResponseEntity.ok(productService.getAvailableProducts());
+        logger.info("Processing getAvailableProducts for Customer");
+        List<ProductDTO> products = productService.getAvailableProducts();
+        logger.info("getAvailableProducts completed successfully for Customer");
+        return ResponseEntity.ok(products);
     }
 }

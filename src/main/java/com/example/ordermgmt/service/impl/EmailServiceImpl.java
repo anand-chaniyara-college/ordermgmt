@@ -12,6 +12,9 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.MessagingException;
 
 @Service
 @RequiredArgsConstructor
@@ -32,7 +35,7 @@ public class EmailServiceImpl implements EmailService {
     @Override
     @Async
     public void sendEmail(String to, String subject, String body) {
-        logger.info("Processing sendEmail for recipient: {}", to);
+        logger.info("Processing sendEmail for User: {}", to);
 
         validateInput(to, subject, body);
 
@@ -41,7 +44,7 @@ public class EmailServiceImpl implements EmailService {
         try {
             sendMimeMessage(to, subject, body);
             updateLogStatus(emailLog, STATUS_SENT, null);
-            logger.info("sendEmail completed successfully for recipient: {}", to);
+            logger.info("sendEmail completed successfully for User: {}", to);
         } catch (Exception e) {
             logger.error("sendEmail failed for recipient: {}: {}", to, e.getMessage());
             updateLogStatus(emailLog, STATUS_FAILED, e.getMessage());
@@ -72,15 +75,15 @@ public class EmailServiceImpl implements EmailService {
 
     private void sendMimeMessage(String to, String subject, String body) {
         try {
-            jakarta.mail.internet.MimeMessage message = mailSender.createMimeMessage();
-            org.springframework.mail.javamail.MimeMessageHelper helper = new org.springframework.mail.javamail.MimeMessageHelper(
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(
                     message, true, "UTF-8");
             helper.setFrom(fromEmail);
             helper.setTo(to);
             helper.setSubject(subject);
-            helper.setText(body, true); // true indicates HTML
+            helper.setText(body, true);
             mailSender.send(message);
-        } catch (jakarta.mail.MessagingException e) {
+        } catch (MessagingException e) {
             throw new EmailSendingException("Failed to create mime message for " + to, e);
         }
     }

@@ -27,9 +27,9 @@ public class CustomerController {
     @Operation(summary = "Get Profile Info", description = "Retrieve the name, email, and address of the currently logged-in user")
     public ResponseEntity<CustomerProfileDTO> getProfile() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        logger.info("Processing getProfile for customer: {}", email);
+        logger.info("Processing getProfile for Customer: {}", email);
         CustomerProfileDTO profile = customerService.getCustomerProfile(email);
-        logger.info("getProfile completed successfully for customer: {}", email);
+        logger.info("getProfile completed successfully for Customer: {}", email);
         return ResponseEntity.ok(profile);
     }
 
@@ -37,9 +37,9 @@ public class CustomerController {
     @Operation(summary = "Update Profile Info", description = "Modify your name, phone number, or address")
     public ResponseEntity<String> updateProfile(@Valid @RequestBody CustomerProfileDTO profileDTO) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
-        logger.info("Processing updateProfile for customer: {}", email);
+        logger.info("Processing updateProfile for Customer: {}", email);
         String result = customerService.updateCustomerProfile(email, profileDTO);
-        logger.info("updateProfile completed successfully for customer: {}", email);
+        logger.info("updateProfile completed successfully for Customer: {}", email);
         return ResponseEntity.ok(result);
     }
 }

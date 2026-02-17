@@ -43,10 +43,11 @@ class CustomerControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(customerController).build();
 
         // Mock Security Context
+        // Mock Security Context
         Authentication authentication = mock(Authentication.class);
         SecurityContext securityContext = mock(SecurityContext.class);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-        when(authentication.getName()).thenReturn("test@example.com");
+        org.mockito.Mockito.lenient().when(securityContext.getAuthentication()).thenReturn(authentication);
+        org.mockito.Mockito.lenient().when(authentication.getName()).thenReturn("test@example.com");
         SecurityContextHolder.setContext(securityContext);
     }
 

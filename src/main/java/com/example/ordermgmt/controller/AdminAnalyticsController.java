@@ -12,6 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
 
@@ -22,6 +24,7 @@ import java.security.Principal;
 @Tag(name = "7. Analytics & Reports (Admin)", description = "View sales trends, monthly performance, and send reports to email")
 public class AdminAnalyticsController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AdminAnalyticsController.class);
     private final AdminAnalyticsService adminAnalyticsService;
 
     @GetMapping("/monthlyreport")
@@ -30,7 +33,9 @@ public class AdminAnalyticsController {
             @RequestParam @NotBlank(message = "Month is required") String month,
             @RequestParam @Min(value = 2000, message = "Year must be 2000 or later") Integer year) {
 
+        logger.info("Processing getMonthlyReport for: {}-{}", month, year);
         MonthlySalesLogDTO report = adminAnalyticsService.getMonthlyReport(month, year);
+        logger.info("getMonthlyReport completed successfully for: {}-{}", month, year);
         return ResponseEntity.ok(report);
     }
 
@@ -41,7 +46,9 @@ public class AdminAnalyticsController {
             Principal principal) {
 
         String adminEmail = principal.getName();
+        logger.info("Processing sendReportEmail for Admin: {}", adminEmail);
         adminAnalyticsService.sendMonthlyReportEmail(request.getMonth(), request.getYear(), adminEmail);
+        logger.info("sendReportEmail completed successfully for Admin: {}", adminEmail);
         return ResponseEntity.ok("Report email request submitted for " + adminEmail);
     }
 }

@@ -26,22 +26,28 @@ public class AdminOrderController {
     @GetMapping
     @Operation(summary = "View All Orders", description = "Get a list of every order placed in the system")
     public ResponseEntity<List<OrderDTO>> getAllOrders() {
-        logger.info("Admin request: view all orders");
-        return ResponseEntity.ok(orderService.getAllOrders());
+        logger.info("Processing getAllOrders for Admin");
+        List<OrderDTO> orders = orderService.getAllOrders();
+        logger.info("getAllOrders completed successfully for Admin");
+        return ResponseEntity.ok(orders);
     }
 
     @GetMapping("/{orderId}")
     @Operation(summary = "View Detailed Order", description = "Get full details of a specific order using its unique ID")
     public ResponseEntity<OrderDTO> getOrderById(@PathVariable String orderId) {
-        logger.info("Admin request: view order {}", orderId);
-        return ResponseEntity.ok(orderService.getOrderById(orderId));
+        logger.info("Processing getOrderById for Order: {}", orderId);
+        OrderDTO order = orderService.getOrderById(orderId);
+        logger.info("getOrderById completed successfully for Order: {}", orderId);
+        return ResponseEntity.ok(order);
     }
 
     @PutMapping("/{orderId}/status")
     @Operation(summary = "Update Order Status", description = "Change the progress of an order (e.g., mark as Shipped or Delivered)")
     public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable String orderId,
             @Valid @RequestBody OrderStatusUpdateDTO statusUpdate) {
-        logger.info("Admin request: update status of order {} to {}", orderId, statusUpdate.getNewStatus());
-        return ResponseEntity.ok(orderService.updateOrderStatus(orderId, statusUpdate));
+        logger.info("Processing updateOrderStatus for Order: {}", orderId);
+        OrderDTO updatedOrder = orderService.updateOrderStatus(orderId, statusUpdate);
+        logger.info("updateOrderStatus completed successfully for Order: {}", orderId);
+        return ResponseEntity.ok(updatedOrder);
     }
 }

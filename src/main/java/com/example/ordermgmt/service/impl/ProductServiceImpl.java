@@ -28,7 +28,7 @@ public class ProductServiceImpl implements ProductService {
     @Override
     @Transactional(readOnly = true)
     public List<ProductDTO> getAvailableProducts() {
-        logger.info("Processing getAvailableProducts request");
+        logger.info("Processing getAvailableProducts for Customer");
 
         List<InventoryItem> items = inventoryItemRepository.findAll();
 
@@ -42,7 +42,7 @@ public class ProductServiceImpl implements ProductService {
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
 
-        logger.info("getAvailableProducts completed successfully - Found {} products", available.size());
+        logger.info("getAvailableProducts completed successfully for Customer - Found {} products", available.size());
         return available;
     }
 
