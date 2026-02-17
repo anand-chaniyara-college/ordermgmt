@@ -1,45 +1,70 @@
 package com.example.ordermgmt.service.impl;
 
+import com.example.ordermgmt.dto.analytics.ItemSalesReportDTO;
 import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
+import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.repository.OrderItemRepository;
 import com.example.ordermgmt.service.AdminAnalyticsService;
+import com.example.ordermgmt.service.EmailService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Month;
-import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AdminAnalyticsServiceImpl.class);
     private final OrderItemRepository orderItemRepository;
-    private final com.example.ordermgmt.service.EmailService emailService;
+    private final EmailService emailService;
 
     @Override
     public MonthlySalesLogDTO getMonthlyReport(String month, int year) {
-        int monthInt;
-        try {
-            monthInt = Month.valueOf(month.toUpperCase()).getValue();
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid month name: " + month);
-        }
+        logger.info("Processing getMonthlyReport for month: {}, year: {}", month, year);
+
+        int monthInt = validateAndGetMonthIndex(month);
 
         MonthlySalesLogDTO report = orderItemRepository.getMonthlyReport(monthInt, year);
         if (report == null || report.getTotalSoldItems() == null || report.getTotalSoldItems() == 0) {
-            return null;
+            logger.warn("Skipping getMonthlyReport for month: {}, year: {} - No records found", month, year);
+            throw new com.example.ordermgmt.exception.ResourceNotFoundException(
+                    "No records found for " + month + " " + year);
         }
 
-        java.util.List<com.example.ordermgmt.dto.analytics.ItemSalesReportDTO> items = orderItemRepository
-                .getMonthlyItemWiseReport(monthInt, year);
+        List<ItemSalesReportDTO> items = orderItemRepository.getMonthlyItemWiseReport(monthInt, year);
         report.setItems(items);
 
+        logger.info("getMonthlyReport completed successfully for month: {}, year: {}", month, year);
         return report;
     }
 
     @Override
     public void sendMonthlyReportEmail(String month, int year, String recipientEmail) {
+        logger.info("Processing sendMonthlyReportEmail for recipient: {}, month: {}, year: {}", recipientEmail, month,
+                year);
+        validateAndGetMonthIndex(month);
+
         MonthlySalesLogDTO report = getMonthlyReport(month, year);
+        String emailBody = formatSalesEmailBody(report, month, year);
+
+        emailService.sendEmail(recipientEmail, "Monthly Sales Report: " + month + " " + year, emailBody);
+        logger.info("sendMonthlyReportEmail completed successfully for recipient: {}", recipientEmail);
+    }
+
+    private int validateAndGetMonthIndex(String month) {
+        try {
+            return Month.valueOf(month.toUpperCase()).getValue();
+        } catch (IllegalArgumentException e) {
+            logger.error("Validation failed for month: {} - Invalid month name", month);
+            throw new InvalidOperationException("Invalid month name: " + month);
+        }
+    }
+
+    private String formatSalesEmailBody(MonthlySalesLogDTO report, String month, int year) {
         StringBuilder sb = new StringBuilder();
 
         if (report == null) {
@@ -54,7 +79,7 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
             sb.append("------------------------------------\n");
 
             if (report.getItems() != null) {
-                for (com.example.ordermgmt.dto.analytics.ItemSalesReportDTO item : report.getItems()) {
+                for (ItemSalesReportDTO item : report.getItems()) {
                     sb.append(String.format("Item ID: %s\n", item.getItemId()));
                     sb.append(String.format("Item Name: %s\n",
                             item.getItemName() != null ? item.getItemName() : "N/A"));
@@ -64,7 +89,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                 }
             }
         }
-
-        emailService.sendEmail(recipientEmail, "Monthly Sales Report: " + month + " " + year, sb.toString());
+        return sb.toString();
     }
 }
