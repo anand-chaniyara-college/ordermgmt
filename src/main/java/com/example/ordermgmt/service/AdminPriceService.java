@@ -6,9 +6,9 @@ import java.util.List;
 public interface AdminPriceService {
     List<AdminPricingDTO> getAllPrices();
 
-    List<AdminPricingDTO> getPriceHistory(String itemId);
+    AdminPricingDTO getPrice(String itemId);
 
-    String addPrice(AdminPricingDTO pricingDTO);
+    void addPrice(AdminPricingDTO pricingDTO);
 
-    String updatePrice(AdminPricingDTO pricingDTO);
+    void updatePrice(AdminPricingDTO pricingDTO);
 }

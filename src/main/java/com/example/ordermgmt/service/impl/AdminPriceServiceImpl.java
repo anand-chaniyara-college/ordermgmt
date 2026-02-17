@@ -8,14 +8,15 @@ import com.example.ordermgmt.repository.InventoryItemRepository;
 import com.example.ordermgmt.repository.PricingCatalogRepository;
 import com.example.ordermgmt.repository.PricingHistoryRepository;
 import com.example.ordermgmt.service.AdminPriceService;
+import com.example.ordermgmt.exception.InvalidOperationException;
+import com.example.ordermgmt.exception.ResourceNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.math.BigDecimal;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -23,7 +24,6 @@ import java.util.stream.Collectors;
 public class AdminPriceServiceImpl implements AdminPriceService {
 
     private static final Logger logger = LoggerFactory.getLogger(AdminPriceServiceImpl.class);
-    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final PricingCatalogRepository pricingCatalogRepository;
     private final PricingHistoryRepository pricingHistoryRepository;
@@ -38,77 +38,95 @@ public class AdminPriceServiceImpl implements AdminPriceService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<AdminPricingDTO> getAllPrices() {
-        return pricingCatalogRepository.findAll().stream()
-                .map(this::convertToDTO)
+        return inventoryItemRepository.findAll().stream()
+                .map(this::convertItemToPricingDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<AdminPricingDTO> getPriceHistory(String itemId) {
-        return pricingHistoryRepository.findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(itemId).stream()
-                .map(this::convertHistoryToDTO)
-                .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public AdminPricingDTO getPrice(String itemId) {
+        return inventoryItemRepository.findById(itemId)
+                .map(this::convertItemToPricingDTO)
+                .orElseThrow(() -> {
+                    logger.error("getPrice failed for Item: {} - Item not found", itemId);
+                    return new ResourceNotFoundException("Item not found: " + itemId);
+                });
     }
 
     @Override
     @Transactional
-    public String addPrice(AdminPricingDTO pricingDTO) {
-        InventoryItem item = inventoryItemRepository.findById(pricingDTO.getItemId())
-                .orElseThrow(() -> new RuntimeException("Item not found: " + pricingDTO.getItemId()));
+    public void addPrice(AdminPricingDTO pricingDTO) {
+        logger.info("Processing addPrice for Item: {}", pricingDTO.getItemId());
 
         if (pricingCatalogRepository.existsById(pricingDTO.getItemId())) {
-            return "Price already set for this item. Use update instead.";
+            logger.warn("Skipping addPrice for Item: {} - Price already set", pricingDTO.getItemId());
+            throw new InvalidOperationException("Price already set for this item. Use update instead.");
         }
 
-        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        InventoryItem item = inventoryItemRepository.findById(pricingDTO.getItemId())
+                .orElseThrow(() -> {
+                    logger.error("addPrice failed for Item: {} - Item not found", pricingDTO.getItemId());
+                    return new ResourceNotFoundException("Item not found: " + pricingDTO.getItemId());
+                });
 
         // Save to Catalog
         PricingCatalog pricing = new PricingCatalog();
         pricing.setInventoryItem(item);
         pricing.setUnitPrice(pricingDTO.getUnitPrice());
-        pricing.setUpdatedTimestamp(now);
+
         pricingCatalogRepository.save(pricing);
+        savePricingHistory(item, null, pricingDTO.getUnitPrice());
 
-        // Save Initial History
-        PricingHistory history = new PricingHistory();
-        history.setInventoryItem(item);
-        history.setOldPrice(null);
-        history.setNewPrice(pricingDTO.getUnitPrice());
-        history.setCreatedTimestamp(now);
-        history.setChangedBy("ADMIN");
-        pricingHistoryRepository.save(history);
-
-        return "Price record added successfully at " + now.format(formatter);
+        logger.info("addPrice completed successfully for Item: {}", pricingDTO.getItemId());
     }
 
     @Override
     @Transactional
-    public String updatePrice(AdminPricingDTO pricingDTO) {
-        PricingCatalog target = pricingCatalogRepository.findByItemId(pricingDTO.getItemId())
-                .orElseThrow(() -> new RuntimeException(
-                        "No existing price record found for item: " + pricingDTO.getItemId()));
+    public void updatePrice(AdminPricingDTO pricingDTO) {
+        logger.info("Processing updatePrice for Item: {}", pricingDTO.getItemId());
 
-        LocalDateTime now = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+        PricingCatalog target = pricingCatalogRepository.findById(pricingDTO.getItemId())
+                .orElseThrow(() -> {
+                    logger.error("updatePrice failed for Item: {} - Price record not found", pricingDTO.getItemId());
+                    return new ResourceNotFoundException(
+                            "No existing price record found for item: " + pricingDTO.getItemId());
+                });
 
-        // Capture old price
-        java.math.BigDecimal oldPrice = target.getUnitPrice();
+        BigDecimal oldPrice = target.getUnitPrice();
 
-        // Update Catalog
         target.setUnitPrice(pricingDTO.getUnitPrice());
-        target.setUpdatedTimestamp(now);
+
         pricingCatalogRepository.save(target);
+        savePricingHistory(target.getInventoryItem(), oldPrice, pricingDTO.getUnitPrice());
 
-        // Save History
+        logger.info("updatePrice completed successfully for Item: {}", pricingDTO.getItemId());
+    }
+
+    private void savePricingHistory(InventoryItem item, BigDecimal oldPrice, BigDecimal newPrice) {
         PricingHistory history = new PricingHistory();
-        history.setInventoryItem(target.getInventoryItem());
+        history.setInventoryItem(item);
         history.setOldPrice(oldPrice);
-        history.setNewPrice(pricingDTO.getUnitPrice());
-        history.setCreatedTimestamp(now);
-        history.setChangedBy("ADMIN");
+        history.setNewPrice(newPrice);
         pricingHistoryRepository.save(history);
+    }
 
-        return "Price updated successfully for item: " + pricingDTO.getItemId();
+    private AdminPricingDTO convertItemToPricingDTO(InventoryItem item) {
+        BigDecimal unitPrice = null;
+        LocalDateTime updatedTimestamp = null;
+
+        if (item.getPricingCatalog() != null) {
+            unitPrice = item.getPricingCatalog().getUnitPrice();
+            updatedTimestamp = item.getPricingCatalog().getUpdatedTimestamp();
+        }
+
+        return new AdminPricingDTO(
+                item.getItemId(),
+                item.getItemName(),
+                unitPrice,
+                updatedTimestamp);
     }
 
     private AdminPricingDTO convertToDTO(PricingCatalog pricing) {

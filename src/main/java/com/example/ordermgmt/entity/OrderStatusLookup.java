@@ -8,6 +8,13 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import jakarta.persistence.EntityListeners;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
 
 @Getter
 @Setter
@@ -15,6 +22,7 @@ import lombok.AllArgsConstructor;
 @AllArgsConstructor
 @Entity
 @Table(name = "ORDER_STATUS_LOOKUP", schema = "ordermgmt")
+@EntityListeners(AuditingEntityListener.class)
 public class OrderStatusLookup {
 
     @Id
@@ -23,4 +31,20 @@ public class OrderStatusLookup {
 
     @Column(name = "statusname", nullable = false, length = 50, unique = true)
     private String statusName;
+
+    @CreatedDate
+    @Column(name = "createdtimestamp", nullable = false, updatable = false)
+    private LocalDateTime createdTimestamp;
+
+    @LastModifiedDate
+    @Column(name = "updatedtimestamp")
+    private LocalDateTime updatedTimestamp;
+
+    @CreatedBy
+    @Column(name = "createdby", updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updatedby")
+    private String updatedBy;
 }

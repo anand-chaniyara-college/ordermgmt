@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -39,7 +40,7 @@ public class AdminOrderController {
     @PutMapping("/{orderId}/status")
     @Operation(summary = "Update Order Status", description = "Change the progress of an order (e.g., mark as Shipped or Delivered)")
     public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable String orderId,
-            @RequestBody OrderStatusUpdateDTO statusUpdate) {
+            @Valid @RequestBody OrderStatusUpdateDTO statusUpdate) {
         logger.info("Admin request: update status of order {} to {}", orderId, statusUpdate.getNewStatus());
         return ResponseEntity.ok(orderService.updateOrderStatus(orderId, statusUpdate));
     }

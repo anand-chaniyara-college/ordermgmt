@@ -6,6 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -34,44 +35,25 @@ public class InventoryController {
     @Operation(summary = "Check Stock for Item", description = "Check how many units of a specific product are currently in stock")
     public ResponseEntity<InventoryItemDTO> getInventoryItem(@PathVariable String itemId) {
         logger.info("Received request to get inventory item: {}", itemId);
-
         InventoryItemDTO item = inventoryService.getInventoryItem(itemId);
-
-        if (item == null) {
-            logger.warn("Inventory item not found: {}", itemId);
-            return ResponseEntity.notFound().build();
-        }
         return ResponseEntity.ok(item);
     }
 
     @PostMapping
     @Operation(summary = "Add New Product to Stock", description = "Register a brand new item in the inventory system")
-    public ResponseEntity<String> addInventoryItem(@RequestBody InventoryItemDTO item) {
+    public ResponseEntity<String> addInventoryItem(@Valid @RequestBody InventoryItemDTO item) {
         logger.info("Received request to add inventory item: {}", item.getItemId());
-
         String result = inventoryService.addInventoryItem(item);
-
-        if ("Item ID already exists".equals(result)) {
-            logger.warn("Add item failed: Item ID already exists - {}", item.getItemId());
-            return ResponseEntity.badRequest().body(result);
-        }
-
         logger.info("Inventory item added successfully: {}", item.getItemId());
         return ResponseEntity.ok(result);
     }
 
     @PutMapping("/{itemId}")
     @Operation(summary = "Update Stock Quantity", description = "Report new stock arrivals or manual adjustments for an item")
-    public ResponseEntity<String> updateInventoryItem(@PathVariable String itemId, @RequestBody InventoryItemDTO item) {
+    public ResponseEntity<String> updateInventoryItem(@PathVariable String itemId,
+            @Valid @RequestBody InventoryItemDTO item) {
         logger.info("Received request to update inventory item: {}", itemId);
-
         String result = inventoryService.updateInventoryItem(itemId, item);
-
-        if ("Item not found".equals(result)) {
-            logger.warn("Update item failed: Item not found - {}", itemId);
-            return ResponseEntity.status(404).body(result);
-        }
-
         logger.info("Inventory item updated successfully: {}", itemId);
         return ResponseEntity.ok(result);
     }
@@ -80,14 +62,7 @@ public class InventoryController {
     @Operation(summary = "Remove Product from System", description = "Completely remove an item from being tracked in the inventory")
     public ResponseEntity<String> deleteInventoryItem(@PathVariable String itemId) {
         logger.info("Received request to delete inventory item: {}", itemId);
-
         String result = inventoryService.deleteInventoryItem(itemId);
-
-        if ("Item not found".equals(result)) {
-            logger.warn("Delete item failed: Item not found - {}", itemId);
-            return ResponseEntity.status(404).body(result);
-        }
-
         logger.info("Inventory item deleted successfully: {}", itemId);
         return ResponseEntity.ok(result);
     }

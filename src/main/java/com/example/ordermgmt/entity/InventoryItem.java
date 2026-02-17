@@ -7,6 +7,13 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.AssertTrue;
+import java.time.LocalDateTime;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+import jakarta.persistence.EntityListeners;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.CreatedBy;
+import org.springframework.data.annotation.LastModifiedBy;
 
 @Getter
 @Setter
@@ -14,6 +21,7 @@ import jakarta.validation.constraints.AssertTrue;
 @AllArgsConstructor
 @Entity
 @Table(name = "INVENTORY_ITEM", schema = "ordermgmt")
+@EntityListeners(AuditingEntityListener.class)
 public class InventoryItem {
 
     @Id
@@ -44,4 +52,20 @@ public class InventoryItem {
         }
         return availableStock >= reservedStock;
     }
+
+    @CreatedDate
+    @Column(name = "createdtimestamp", nullable = false, updatable = false)
+    private LocalDateTime createdTimestamp;
+
+    @LastModifiedDate
+    @Column(name = "updatedtimestamp")
+    private LocalDateTime updatedTimestamp;
+
+    @CreatedBy
+    @Column(name = "createdby", updatable = false)
+    private String createdBy;
+
+    @LastModifiedBy
+    @Column(name = "updatedby")
+    private String updatedBy;
 }

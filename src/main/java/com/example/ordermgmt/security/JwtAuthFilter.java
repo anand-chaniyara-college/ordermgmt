@@ -10,16 +10,23 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.example.ordermgmt.service.TokenBlacklistService;
 import java.io.IOException;
 import java.util.Collections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Component
 public class JwtAuthFilter extends OncePerRequestFilter {
 
-    private final JwtUtil jwtUtil;
+    private static final Logger logger = LoggerFactory.getLogger(JwtAuthFilter.class);
 
-    public JwtAuthFilter(JwtUtil jwtUtil) {
+    private final JwtUtil jwtUtil;
+    private final TokenBlacklistService tokenBlacklistService;
+
+    public JwtAuthFilter(JwtUtil jwtUtil, TokenBlacklistService tokenBlacklistService) {
         this.jwtUtil = jwtUtil;
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     @Override
@@ -31,18 +38,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
+            if (tokenBlacklistService.isBlacklisted(token)) {
+                logger.warn("Authentication failed: Token is blacklisted. Request URI: {}", request.getRequestURI());
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                response.setContentType("application/json");
+                response.getWriter()
+                        .write("{\"error\": \"Authentication Failed\", \"message\": \"Token is blacklisted\"}");
+                return;
+            }
+
             if (jwtUtil.validateToken(token)) {
                 String email = jwtUtil.extractUsername(token);
                 String role = jwtUtil.extractRole(token);
 
-                SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
+                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                    SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            email, null, Collections.singletonList(authority));
 
-                UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                        email,
-                        null,
-                        Collections.singletonList(authority));
-
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                    logger.debug("Authentication successful for user: {}, role: {}", email, role);
+                }
+            } else {
+                logger.warn("Authentication failed: Invalid JWT token. Request URI: {}", request.getRequestURI());
             }
         }
 
