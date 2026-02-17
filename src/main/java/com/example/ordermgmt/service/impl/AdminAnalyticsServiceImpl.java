@@ -67,28 +67,47 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
     private String formatSalesEmailBody(MonthlySalesLogDTO report, String month, int year) {
         StringBuilder sb = new StringBuilder();
 
-        if (report == null) {
-            sb.append("No records found for ").append(month).append(" ").append(year).append(".");
-        } else {
-            sb.append(String.format("Monthly Sales Report for %s %d\n", month, year));
-            sb.append("====================================\n\n");
-            sb.append(String.format("Total Items Sold: %d\n", report.getTotalSoldItems()));
-            sb.append(String.format("Total Revenue: %.2f\n\n", report.getTotalRevenue()));
+        sb.append("<html><body>");
+        sb.append("<h2 style='color: #2c3e50;'>Monthly Sales Report for ").append(month).append(" ").append(year)
+                .append("</h2>");
 
-            sb.append("Item-wise Breakdown:\n");
-            sb.append("------------------------------------\n");
+        if (report == null) {
+            sb.append("<p>No records found for ").append(month).append(" ").append(year).append(".</p>");
+        } else {
+            sb.append("<p><strong>Total Items Sold:</strong> ").append(report.getTotalSoldItems()).append("<br>");
+            sb.append("<strong>Total Revenue:</strong> ").append(String.format("%.2f", report.getTotalRevenue()))
+                    .append("</p>");
+
+            sb.append("<h3 style='color: #2c3e50;'>Item-wise Breakdown</h3>");
+            sb.append("<table style='width: 100%; border-collapse: collapse; border: 1px solid #ddd;'>");
+            sb.append("<thead style='background-color: #f2f2f2;'>");
+            sb.append("<tr>");
+            sb.append("<th style='padding: 10px; border: 1px solid #ddd; text-align: left;'>Item ID</th>");
+            sb.append("<th style='padding: 10px; border: 1px solid #ddd; text-align: left;'>Item Name</th>");
+            sb.append("<th style='padding: 10px; border: 1px solid #ddd; text-align: right;'>Sold</th>");
+            sb.append("<th style='padding: 10px; border: 1px solid #ddd; text-align: right;'>Revenue</th>");
+            sb.append("</tr>");
+            sb.append("</thead>");
+            sb.append("<tbody>");
 
             if (report.getItems() != null) {
                 for (ItemSalesReportDTO item : report.getItems()) {
-                    sb.append(String.format("Item ID: %s\n", item.getItemId()));
-                    sb.append(String.format("Item Name: %s\n",
-                            item.getItemName() != null ? item.getItemName() : "N/A"));
-                    sb.append(String.format("Total Sold: %d\n", item.getTotalSoldItems()));
-                    sb.append(String.format("Revenue Generated: %.2f\n", item.getTotalRevenue()));
-                    sb.append("------------------------------------\n");
+                    sb.append("<tr>");
+                    sb.append("<td style='padding: 10px; border: 1px solid #ddd;'>").append(item.getItemId())
+                            .append("</td>");
+                    sb.append("<td style='padding: 10px; border: 1px solid #ddd;'>")
+                            .append(item.getItemName() != null ? item.getItemName() : "N/A").append("</td>");
+                    sb.append("<td style='padding: 10px; border: 1px solid #ddd; text-align: right;'>")
+                            .append(item.getTotalSoldItems()).append("</td>");
+                    sb.append("<td style='padding: 10px; border: 1px solid #ddd; text-align: right;'>")
+                            .append(String.format("%.2f", item.getTotalRevenue())).append("</td>");
+                    sb.append("</tr>");
                 }
             }
+            sb.append("</tbody>");
+            sb.append("</table>");
         }
+        sb.append("</body></html>");
         return sb.toString();
     }
 }
