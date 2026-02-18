@@ -4,18 +4,18 @@ import com.example.ordermgmt.dto.AdminPricingDTO;
 import com.example.ordermgmt.entity.InventoryItem;
 import com.example.ordermgmt.entity.PricingCatalog;
 import com.example.ordermgmt.entity.PricingHistory;
+import com.example.ordermgmt.exception.InvalidOperationException;
+import com.example.ordermgmt.exception.ResourceNotFoundException;
 import com.example.ordermgmt.repository.InventoryItemRepository;
 import com.example.ordermgmt.repository.PricingCatalogRepository;
 import com.example.ordermgmt.repository.PricingHistoryRepository;
 import com.example.ordermgmt.service.AdminPriceService;
-import com.example.ordermgmt.exception.InvalidOperationException;
-import com.example.ordermgmt.exception.ResourceNotFoundException;
+import org.springframework.data.domain.AuditorAware;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
-
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -28,13 +28,20 @@ public class AdminPriceServiceImpl implements AdminPriceService {
     private final PricingCatalogRepository pricingCatalogRepository;
     private final PricingHistoryRepository pricingHistoryRepository;
     private final InventoryItemRepository inventoryItemRepository;
+    private final AuditorAware<String> auditorAware;
 
     public AdminPriceServiceImpl(PricingCatalogRepository pricingCatalogRepository,
             PricingHistoryRepository pricingHistoryRepository,
-            InventoryItemRepository inventoryItemRepository) {
+            InventoryItemRepository inventoryItemRepository,
+            AuditorAware<String> auditorAware) {
         this.pricingCatalogRepository = pricingCatalogRepository;
         this.pricingHistoryRepository = pricingHistoryRepository;
         this.inventoryItemRepository = inventoryItemRepository;
+        this.auditorAware = auditorAware;
+    }
+
+    private String getCurrentAuditor() {
+        return auditorAware.getCurrentAuditor().orElse("SYSTEM");
     }
 
     @Override
@@ -72,13 +79,19 @@ public class AdminPriceServiceImpl implements AdminPriceService {
                     return new ResourceNotFoundException("Item not found: " + pricingDTO.getItemId());
                 });
 
-        // Save to Catalog
+        LocalDateTime now = LocalDateTime.now();
+        String currentUser = getCurrentAuditor();
+
         PricingCatalog pricing = new PricingCatalog();
         pricing.setInventoryItem(item);
         pricing.setUnitPrice(pricingDTO.getUnitPrice());
+        pricing.setUpdatedTimestamp(now);
+        pricing.setCreatedBy(currentUser);
+        pricing.setUpdatedBy(currentUser);
+        pricing.setCreatedTimestamp(now);
 
         pricingCatalogRepository.save(pricing);
-        savePricingHistory(item, null, pricingDTO.getUnitPrice());
+        savePricingHistory(item, null, pricingDTO.getUnitPrice(), now, currentUser);
 
         logger.info("addPrice completed successfully for Item: {}", pricingDTO.getItemId());
     }
@@ -96,20 +109,27 @@ public class AdminPriceServiceImpl implements AdminPriceService {
                 });
 
         BigDecimal oldPrice = target.getUnitPrice();
+        LocalDateTime now = LocalDateTime.now();
+        String currentUser = getCurrentAuditor();
 
         target.setUnitPrice(pricingDTO.getUnitPrice());
+        target.setUpdatedTimestamp(now);
+        target.setUpdatedBy(currentUser);
 
         pricingCatalogRepository.save(target);
-        savePricingHistory(target.getInventoryItem(), oldPrice, pricingDTO.getUnitPrice());
+        savePricingHistory(target.getInventoryItem(), oldPrice, pricingDTO.getUnitPrice(), now, currentUser);
 
         logger.info("updatePrice completed successfully for Item: {}", pricingDTO.getItemId());
     }
 
-    private void savePricingHistory(InventoryItem item, BigDecimal oldPrice, BigDecimal newPrice) {
+    private void savePricingHistory(InventoryItem item, BigDecimal oldPrice, BigDecimal newPrice,
+            LocalDateTime timestamp, String auditor) {
         PricingHistory history = new PricingHistory();
         history.setInventoryItem(item);
         history.setOldPrice(oldPrice);
         history.setNewPrice(newPrice);
+        history.setCreatedTimestamp(timestamp);
+        history.setCreatedBy(auditor);
         pricingHistoryRepository.save(history);
     }
 

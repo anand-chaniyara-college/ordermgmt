@@ -42,7 +42,6 @@ public class PricingCatalog {
     @Column(name = "createdtimestamp", nullable = false, updatable = false)
     private LocalDateTime createdTimestamp;
 
-    @LastModifiedDate
     @Column(name = "updatedtimestamp")
     private LocalDateTime updatedTimestamp;
 
