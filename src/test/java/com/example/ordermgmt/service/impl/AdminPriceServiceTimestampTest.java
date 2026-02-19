@@ -16,7 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -50,7 +50,8 @@ class AdminPriceServiceTimestampTest {
         item.setItemId("item123");
         item.setItemName("Test Item");
 
-        pricingDTO = new AdminPricingDTO("item123", "Test Item", new BigDecimal("100.00"), null);
+        // Removed itemName from constructor
+        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("100.00"), null);
     }
 
     @Test
@@ -61,7 +62,7 @@ class AdminPriceServiceTimestampTest {
         when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user@example.com"));
 
         // Act
-        adminPriceService.addPrice(pricingDTO);
+        adminPriceService.addPrices(Collections.singletonList(pricingDTO));
 
         // Assert
         ArgumentCaptor<PricingCatalog> catalogCaptor = ArgumentCaptor.forClass(PricingCatalog.class);
@@ -92,10 +93,11 @@ class AdminPriceServiceTimestampTest {
         when(pricingCatalogRepository.findById("item123")).thenReturn(Optional.of(existingCatalog));
         when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user@example.com"));
 
-        pricingDTO = new AdminPricingDTO("item123", "Test Item", new BigDecimal("150.00"), null);
+        // Removed itemName from constructor
+        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("150.00"), null);
 
         // Act
-        adminPriceService.updatePrice(pricingDTO);
+        adminPriceService.updatePrices(Collections.singletonList(pricingDTO));
 
         // Assert
         ArgumentCaptor<PricingCatalog> catalogCaptor = ArgumentCaptor.forClass(PricingCatalog.class);

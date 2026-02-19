@@ -13,8 +13,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.AuditorAware;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -32,6 +34,9 @@ public class PricingLogicTest {
     @Mock
     private InventoryItemRepository inventoryItemRepository;
 
+    @Mock
+    private AuditorAware<String> auditorAware;
+
     @InjectMocks
     private AdminPriceServiceImpl adminPriceService;
 
@@ -48,9 +53,10 @@ public class PricingLogicTest {
 
         when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.of(item));
         when(pricingCatalogRepository.existsById(itemId)).thenReturn(false);
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("user"));
 
         // Execute
-        adminPriceService.addPrice(dto);
+        adminPriceService.addPrices(Collections.singletonList(dto));
 
         // Verify
         verify(pricingCatalogRepository, times(1)).save(any(PricingCatalog.class));
@@ -70,9 +76,10 @@ public class PricingLogicTest {
         existing.setInventoryItem(new InventoryItem()); // Set inventory item to avoid NPE if needed
 
         when(pricingCatalogRepository.findById(itemId)).thenReturn(Optional.of(existing));
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("user"));
 
         // Execute
-        adminPriceService.updatePrice(dto);
+        adminPriceService.updatePrices(Collections.singletonList(dto));
 
         // Verify
         verify(pricingCatalogRepository, times(1)).save(existing);

@@ -4,9 +4,13 @@ import com.example.ordermgmt.dto.AdminPricingDTO;
 import com.example.ordermgmt.service.AdminPriceService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
@@ -25,39 +29,49 @@ public class AdminPriceController {
     }
 
     @GetMapping
-    @Operation(summary = "View Price List", description = "Get the current selling price and cost for all available products")
-    public ResponseEntity<List<AdminPricingDTO>> getAllPrices() {
-        logger.info("Processing getAllPrices for Admin");
+    @Operation(summary = "View Prices (Merged)", description = "Get pricing. Returns specific item price if itemId provided, paginated result if page/size provided, or full list otherwise.")
+    public ResponseEntity<?> getPrices(
+            @Parameter(description = "Specific Item ID to retrieve price for") @RequestParam(required = false) String itemId,
+            @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
+
+        if (itemId != null && !itemId.isEmpty()) {
+            logger.info("Processing getPrice for specific Item: {}", itemId);
+            AdminPricingDTO price = adminPriceService.getPrice(itemId);
+            logger.info("getPrice completed successfully for Item: {}", itemId);
+            return ResponseEntity.ok(price);
+        }
+
+        if (page != null && size != null) {
+            logger.info("Processing getAllPrices (Page) for Admin - Page: {}, Size: {}", page, size);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<AdminPricingDTO> prices = adminPriceService.getAllPrices(pageable);
+            logger.info("getAllPrices (Page) completed successfully for Admin");
+            return ResponseEntity.ok(prices);
+        }
+
+        logger.info("Processing getAllPrices (List) for Admin");
         List<AdminPricingDTO> prices = adminPriceService.getAllPrices();
-        logger.info("getAllPrices completed successfully for Admin");
+        logger.info("getAllPrices (List) completed successfully for Admin");
         return ResponseEntity.ok(prices);
     }
 
-    @GetMapping("/{itemId}")
-    @Operation(summary = "Get Price Details", description = "Get the current price details for a specific item")
-    public ResponseEntity<AdminPricingDTO> getPrice(@PathVariable String itemId) {
-        logger.info("Processing getPrice for Item: {}", itemId);
-        AdminPricingDTO price = adminPriceService.getPrice(itemId);
-        logger.info("getPrice completed successfully for Item: {}", itemId);
-        return ResponseEntity.ok(price);
-    }
-
     @PostMapping
-    @Operation(summary = "Create New Price Record", description = "Set an initial price for a newly added product")
-    public ResponseEntity<String> addPrice(@Valid @RequestBody AdminPricingDTO pricingDTO) {
-        logger.info("Processing addPrice for Item: {}", pricingDTO.getItemId());
-        adminPriceService.addPrice(pricingDTO);
-        logger.info("addPrice completed successfully for Item: {}", pricingDTO.getItemId());
+    @Operation(summary = "Create Price Records", description = "Set initial prices for newly added products in bulk")
+    public ResponseEntity<String> addPrices(@Valid @RequestBody List<AdminPricingDTO> pricingDTOs) {
+        logger.info("Processing addPrices for {} items", pricingDTOs.size());
+        adminPriceService.addPrices(pricingDTOs);
+        logger.info("addPrices completed successfully");
         return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
-                .body("Price record added successfully.");
+                .body("Price records added successfully.");
     }
 
     @PutMapping
-    @Operation(summary = "Update Existing Price", description = "Adjust the current price of a product currently on sale")
-    public ResponseEntity<String> updatePrice(@Valid @RequestBody AdminPricingDTO pricingDTO) {
-        logger.info("Processing updatePrice for Item: {}", pricingDTO.getItemId());
-        adminPriceService.updatePrice(pricingDTO);
-        logger.info("updatePrice completed successfully for Item: {}", pricingDTO.getItemId());
-        return ResponseEntity.ok("Price updated successfully for item: " + pricingDTO.getItemId());
+    @Operation(summary = "Update Prices", description = "Adjust prices for products in bulk")
+    public ResponseEntity<String> updatePrices(@Valid @RequestBody List<AdminPricingDTO> pricingDTOs) {
+        logger.info("Processing updatePrices for {} items", pricingDTOs.size());
+        adminPriceService.updatePrices(pricingDTOs);
+        logger.info("updatePrices completed successfully");
+        return ResponseEntity.ok("Prices updated successfully.");
     }
 }

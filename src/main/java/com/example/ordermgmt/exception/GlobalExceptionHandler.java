@@ -18,6 +18,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import java.util.HashMap;
 import java.util.Map;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -184,5 +185,20 @@ public class GlobalExceptionHandler {
         response.put("error", "Internal Server Error");
         response.put("message", "An unexpected error occurred. Please contact support.");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<Map<String, String>> handleConstraintViolationException(
+            ConstraintViolationException ex, HttpServletRequest request) {
+        logger.warn("Constraint violation at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> errors = new HashMap<>();
+        if (ex.getConstraintViolations() != null) {
+            ex.getConstraintViolations().forEach(violation -> {
+                String propertyPath = violation.getPropertyPath().toString();
+                String message = violation.getMessage();
+                errors.put(propertyPath, message);
+            });
+        }
+        return ResponseEntity.badRequest().body(errors);
     }
 }

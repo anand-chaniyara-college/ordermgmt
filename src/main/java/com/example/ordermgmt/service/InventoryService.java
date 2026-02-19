@@ -1,16 +1,24 @@
 package com.example.ordermgmt.service;
 
 import com.example.ordermgmt.dto.InventoryItemDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import com.example.ordermgmt.dto.AddStockRequestDTO;
+
 import java.util.List;
 
 public interface InventoryService {
     List<InventoryItemDTO> getAllInventory();
 
-    String addInventoryItem(InventoryItemDTO item);
-
-    String updateInventoryItem(String itemId, InventoryItemDTO item);
+    Page<InventoryItemDTO> getAllInventory(Pageable pageable);
 
     InventoryItemDTO getInventoryItem(String itemId);
 
-    String deleteInventoryItem(String itemId);
+    List<String> addInventoryItems(List<InventoryItemDTO> items);
+
+    List<String> updateInventoryItems(List<InventoryItemDTO> items);
+
+    List<String> addStock(List<AddStockRequestDTO> items);
+
+    void deleteInventoryItems(List<String> itemIds);
 }

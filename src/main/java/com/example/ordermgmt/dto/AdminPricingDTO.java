@@ -17,7 +17,6 @@ public class AdminPricingDTO {
     @NotBlank(message = "Item ID is required")
     private String itemId;
 
-    private String itemName;
     @NotNull(message = "Unit price is required")
     @PositiveOrZero(message = "Unit price must be non-negative")
     private BigDecimal unitPrice;
