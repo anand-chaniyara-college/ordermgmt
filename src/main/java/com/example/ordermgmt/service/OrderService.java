@@ -1,6 +1,7 @@
 package com.example.ordermgmt.service;
 
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
 import org.springframework.data.domain.Page;
@@ -29,5 +30,5 @@ public interface OrderService {
 
     OrderDTO updateOrderStatus(String orderId, OrderStatusUpdateDTO statusUpdate);
 
-    List<OrderDTO> updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates);
+    BulkOrderUpdateResultDTO updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates);
 }

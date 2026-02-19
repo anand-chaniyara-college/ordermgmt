@@ -1,5 +1,6 @@
 package com.example.ordermgmt.controller;
 
+import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
 import com.example.ordermgmt.service.OrderService;
@@ -61,12 +62,13 @@ public class AdminOrderController {
     }
 
     @PutMapping("/status")
-    @Operation(summary = "Bulk Update Order Status", description = "Update the status of multiple orders at once")
-    public ResponseEntity<List<OrderDTO>> updateOrderStatusBulk(
+    @Operation(summary = "Bulk Update Order Status", description = "Update the status of multiple orders at once. Each order is processed independently — one failure won't affect others.")
+    public ResponseEntity<BulkOrderUpdateResultDTO> updateOrderStatusBulk(
             @Valid @RequestBody List<BulkOrderStatusUpdateDTO> updates) {
         logger.info("Processing updateOrderStatusBulk for {} orders", updates.size());
-        List<OrderDTO> updatedOrders = orderService.updateOrdersStatus(updates);
-        logger.info("updateOrderStatusBulk completed successfully");
-        return ResponseEntity.ok(updatedOrders);
+        BulkOrderUpdateResultDTO result = orderService.updateOrdersStatus(updates);
+        logger.info("updateOrderStatusBulk completed: {} successes, {} failures",
+                result.getSuccesses().size(), result.getFailures().size());
+        return ResponseEntity.ok(result);
     }
 }

@@ -1,6 +1,7 @@
 package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.service.OrderService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +16,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -88,16 +88,19 @@ class AdminOrderControllerTest {
         OrderDTO order1 = new OrderDTO();
         order1.setOrderId("order-1");
         order1.setStatus("SHIPPED");
-        List<OrderDTO> updatedOrders = Collections.singletonList(order1);
 
-        when(orderService.updateOrdersStatus(any())).thenReturn(updatedOrders);
+        BulkOrderUpdateResultDTO result = new BulkOrderUpdateResultDTO(
+                Collections.singletonList(order1), Collections.emptyList());
+
+        when(orderService.updateOrdersStatus(any())).thenReturn(result);
 
         mockMvc.perform(put("/api/admin/orders/status")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(updates)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderId").value("order-1"))
-                .andExpect(jsonPath("$[0].status").value("SHIPPED"));
+                .andExpect(jsonPath("$.successes[0].orderId").value("order-1"))
+                .andExpect(jsonPath("$.successes[0].status").value("SHIPPED"))
+                .andExpect(jsonPath("$.failures").isEmpty());
     }
 
     // List validation requires @Validated AOP which is not available in standalone
