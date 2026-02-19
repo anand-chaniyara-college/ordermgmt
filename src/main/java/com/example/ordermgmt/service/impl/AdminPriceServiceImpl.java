@@ -93,19 +93,19 @@ public class AdminPriceServiceImpl implements AdminPriceService {
                         return new ResourceNotFoundException("Item not found: " + pricingDTO.getItemId());
                     });
 
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime syncTime = pricingDTO.getEffectiveFrom() != null ? pricingDTO.getEffectiveFrom()
+                    : LocalDateTime.now();
             String currentUser = getCurrentAuditor();
 
             PricingCatalog pricing = new PricingCatalog();
             pricing.setInventoryItem(item);
             pricing.setUnitPrice(pricingDTO.getUnitPrice());
-            pricing.setUpdatedTimestamp(now);
+            pricing.setUpdatedTimestamp(syncTime);
             pricing.setCreatedBy(currentUser);
             pricing.setUpdatedBy(currentUser);
-            pricing.setCreatedTimestamp(now);
 
             pricingCatalogRepository.save(pricing);
-            savePricingHistory(item, null, pricingDTO.getUnitPrice(), now, currentUser);
+            savePricingHistory(item, null, pricingDTO.getUnitPrice(), syncTime, currentUser);
         }
         logger.info("addPrices completed successfully");
     }
@@ -125,15 +125,16 @@ public class AdminPriceServiceImpl implements AdminPriceService {
                     });
 
             BigDecimal oldPrice = target.getUnitPrice();
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime syncTime = pricingDTO.getEffectiveFrom() != null ? pricingDTO.getEffectiveFrom()
+                    : LocalDateTime.now();
             String currentUser = getCurrentAuditor();
 
             target.setUnitPrice(pricingDTO.getUnitPrice());
-            target.setUpdatedTimestamp(now);
+            target.setUpdatedTimestamp(syncTime);
             target.setUpdatedBy(currentUser);
 
             pricingCatalogRepository.save(target);
-            savePricingHistory(target.getInventoryItem(), oldPrice, pricingDTO.getUnitPrice(), now, currentUser);
+            savePricingHistory(target.getInventoryItem(), oldPrice, pricingDTO.getUnitPrice(), syncTime, currentUser);
         }
         logger.info("updatePrices completed successfully");
     }

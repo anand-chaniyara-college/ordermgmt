@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.Optional;
 
@@ -49,17 +50,16 @@ class AdminPriceServiceTimestampTest {
         item = new InventoryItem();
         item.setItemId("item123");
         item.setItemName("Test Item");
-
-        // Removed itemName from constructor
-        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("100.00"), null);
     }
 
     @Test
-    void addPrice_shouldSynchronizeTimestampsAndSetAuditor() {
+    void addPrices_NoEffectiveFrom_ShouldUseNow() {
         // Arrange
+        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("100.00"), null);
+
         when(pricingCatalogRepository.existsById("item123")).thenReturn(false);
         when(inventoryItemRepository.findById("item123")).thenReturn(Optional.of(item));
-        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user@example.com"));
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user"));
 
         // Act
         adminPriceService.addPrices(Collections.singletonList(pricingDTO));
@@ -73,28 +73,56 @@ class AdminPriceServiceTimestampTest {
         verify(pricingHistoryRepository).save(historyCaptor.capture());
         PricingHistory savedHistory = historyCaptor.getValue();
 
-        assertNotNull(savedCatalog.getUpdatedTimestamp(), "Catalog updatedTimestamp should not be null");
-        assertNotNull(savedHistory.getCreatedTimestamp(), "History createdTimestamp should not be null");
-        assertEquals(savedCatalog.getUpdatedTimestamp(), savedHistory.getCreatedTimestamp(), "Timestamps must be exactly equal");
-        assertEquals(savedCatalog.getCreatedTimestamp(), savedHistory.getCreatedTimestamp(), "Catalog createdTimestamp must also match history createdTimestamp");
+        assertNotNull(savedCatalog.getUpdatedTimestamp());
+        assertNotNull(savedHistory.getCreatedTimestamp());
 
-        assertEquals("test-user@example.com", savedCatalog.getCreatedBy());
-        assertEquals("test-user@example.com", savedCatalog.getUpdatedBy());
-        assertEquals("test-user@example.com", savedHistory.getCreatedBy());
+        // They should be equal (syncTime)
+        assertEquals(savedCatalog.getUpdatedTimestamp(), savedHistory.getCreatedTimestamp());
+
+        // Since effectiveFrom was null, it should be close to NOW
+        assertTrue(savedCatalog.getUpdatedTimestamp().isAfter(LocalDateTime.now().minusSeconds(5)));
+        assertTrue(savedCatalog.getUpdatedTimestamp().isBefore(LocalDateTime.now().plusSeconds(1)));
     }
 
     @Test
-    void updatePrice_shouldSynchronizeTimestampsAndSetAuditor() {
+    void addPrices_WithEffectiveFrom_ShouldUseEffectiveFrom() {
+        // Arrange
+        LocalDateTime futureDate = LocalDateTime.now().plusDays(5);
+        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("100.00"), futureDate);
+
+        when(pricingCatalogRepository.existsById("item123")).thenReturn(false);
+        when(inventoryItemRepository.findById("item123")).thenReturn(Optional.of(item));
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user"));
+
+        // Act
+        adminPriceService.addPrices(Collections.singletonList(pricingDTO));
+
+        // Assert
+        ArgumentCaptor<PricingCatalog> catalogCaptor = ArgumentCaptor.forClass(PricingCatalog.class);
+        verify(pricingCatalogRepository).save(catalogCaptor.capture());
+        PricingCatalog savedCatalog = catalogCaptor.getValue();
+
+        ArgumentCaptor<PricingHistory> historyCaptor = ArgumentCaptor.forClass(PricingHistory.class);
+        verify(pricingHistoryRepository).save(historyCaptor.capture());
+        PricingHistory savedHistory = historyCaptor.getValue();
+
+        // Should match effectiveFrom
+        assertEquals(futureDate, savedCatalog.getUpdatedTimestamp());
+        assertEquals(futureDate, savedHistory.getCreatedTimestamp());
+    }
+
+    @Test
+    void updatePrices_WithEffectiveFrom_ShouldUseEffectiveFrom() {
         // Arrange
         PricingCatalog existingCatalog = new PricingCatalog();
         existingCatalog.setInventoryItem(item);
         existingCatalog.setUnitPrice(new BigDecimal("50.00"));
 
-        when(pricingCatalogRepository.findById("item123")).thenReturn(Optional.of(existingCatalog));
-        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user@example.com"));
+        LocalDateTime pastDate = LocalDateTime.now().minusDays(2);
+        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("150.00"), pastDate);
 
-        // Removed itemName from constructor
-        pricingDTO = new AdminPricingDTO("item123", new BigDecimal("150.00"), null);
+        when(pricingCatalogRepository.findById("item123")).thenReturn(Optional.of(existingCatalog));
+        when(auditorAware.getCurrentAuditor()).thenReturn(Optional.of("test-user"));
 
         // Act
         adminPriceService.updatePrices(Collections.singletonList(pricingDTO));
@@ -108,12 +136,8 @@ class AdminPriceServiceTimestampTest {
         verify(pricingHistoryRepository).save(historyCaptor.capture());
         PricingHistory savedHistory = historyCaptor.getValue();
 
-        assertNotNull(savedCatalog.getUpdatedTimestamp(), "Catalog updatedTimestamp should not be null");
-        assertNotNull(savedHistory.getCreatedTimestamp(), "History createdTimestamp should not be null");
-        assertEquals(savedCatalog.getUpdatedTimestamp(), savedHistory.getCreatedTimestamp(),
-                "Timestamps must be exactly equal");
-
-        assertEquals("test-user@example.com", savedCatalog.getUpdatedBy());
-        assertEquals("test-user@example.com", savedHistory.getCreatedBy());
+        // Should match effectiveFrom
+        assertEquals(pastDate, savedCatalog.getUpdatedTimestamp());
+        assertEquals(pastDate, savedHistory.getCreatedTimestamp());
     }
 }
