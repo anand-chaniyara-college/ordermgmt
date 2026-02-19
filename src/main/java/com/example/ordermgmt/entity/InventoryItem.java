@@ -44,7 +44,7 @@ public class InventoryItem {
     @OneToOne(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
     private PricingCatalog pricingCatalog;
 
-    @OneToMany(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
+    @OneToMany(mappedBy = "inventoryItem", cascade = CascadeType.PERSIST)
     private List<PricingHistory> pricingHistoryLogs;
 
     @Version

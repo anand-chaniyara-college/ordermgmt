@@ -1,0 +1,808 @@
+commit caa805752059cebce0d11b474bb71f0818b690ce
+Author: anand.chaniyara <anand.chaniyara@azilen.com>
+Date:   Fri Feb 20 01:14:37 2026 +0530
+
+    feat(order): implement concurrency safety and performance optimization
+    
+    - Concurrency: Pessimistic locking with deterministic lock order in OrderInventoryManagerImpl
+    - Scheduler: OrderAutoCancelScheduler for stale order cleanup
+    - Performance: HikariCP tuning and open-in-view disabled
+    - Pricing: Resolve price from PricingHistory (immutable) with PricingCatalog fallback
+    - API: Bulk update results with success/failure tracking (BulkOrderUpdateResultDTO)
+    - Helper: OrderTransitionHelper for reusable state transition logic
+
+diff --git a/src/main/java/com/example/ordermgmt/OrdermgmtApplication.java b/src/main/java/com/example/ordermgmt/OrdermgmtApplication.java
+index 183cd3e..20c0360 100644
+--- a/src/main/java/com/example/ordermgmt/OrdermgmtApplication.java
++++ b/src/main/java/com/example/ordermgmt/OrdermgmtApplication.java
+@@ -3,9 +3,11 @@ package com.example.ordermgmt;
+ import org.springframework.boot.SpringApplication;
+ import org.springframework.boot.autoconfigure.SpringBootApplication;
+ import org.springframework.scheduling.annotation.EnableAsync;
++import org.springframework.scheduling.annotation.EnableScheduling;
+ 
+ @SpringBootApplication
+ @EnableAsync
++@EnableScheduling
+ public class OrdermgmtApplication {
+ 
+ 	public static void main(String[] args) {
+diff --git a/src/main/java/com/example/ordermgmt/controller/AdminOrderController.java b/src/main/java/com/example/ordermgmt/controller/AdminOrderController.java
+index 6663e57..ac20d2c 100644
+--- a/src/main/java/com/example/ordermgmt/controller/AdminOrderController.java
++++ b/src/main/java/com/example/ordermgmt/controller/AdminOrderController.java
+@@ -1,5 +1,6 @@
+ package com.example.ordermgmt.controller;
+ 
++import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
+ import com.example.ordermgmt.dto.OrderDTO;
+ import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
+ import com.example.ordermgmt.service.OrderService;
+@@ -61,12 +62,13 @@ public class AdminOrderController {
+     }
+ 
+     @PutMapping("/status")
+-    @Operation(summary = "Bulk Update Order Status", description = "Update the status of multiple orders at once")
+-    public ResponseEntity<List<OrderDTO>> updateOrderStatusBulk(
++    @Operation(summary = "Bulk Update Order Status", description = "Update the status of multiple orders at once. Each order is processed independently — one failure won't affect others.")
++    public ResponseEntity<BulkOrderUpdateResultDTO> updateOrderStatusBulk(
+             @Valid @RequestBody List<BulkOrderStatusUpdateDTO> updates) {
+         logger.info("Processing updateOrderStatusBulk for {} orders", updates.size());
+-        List<OrderDTO> updatedOrders = orderService.updateOrdersStatus(updates);
+-        logger.info("updateOrderStatusBulk completed successfully");
+-        return ResponseEntity.ok(updatedOrders);
++        BulkOrderUpdateResultDTO result = orderService.updateOrdersStatus(updates);
++        logger.info("updateOrderStatusBulk completed: {} successes, {} failures",
++                result.getSuccesses().size(), result.getFailures().size());
++        return ResponseEntity.ok(result);
+     }
+ }
+diff --git a/src/main/java/com/example/ordermgmt/dto/BulkOrderFailureDTO.java b/src/main/java/com/example/ordermgmt/dto/BulkOrderFailureDTO.java
+new file mode 100644
+index 0000000..a80d613
+--- /dev/null
++++ b/src/main/java/com/example/ordermgmt/dto/BulkOrderFailureDTO.java
+@@ -0,0 +1,13 @@
++package com.example.ordermgmt.dto;
++
++import lombok.AllArgsConstructor;
++import lombok.Data;
++import lombok.NoArgsConstructor;
++
++@Data
++@NoArgsConstructor
++@AllArgsConstructor
++public class BulkOrderFailureDTO {
++    private String orderId;
++    private String error;
++}
+diff --git a/src/main/java/com/example/ordermgmt/dto/BulkOrderUpdateResultDTO.java b/src/main/java/com/example/ordermgmt/dto/BulkOrderUpdateResultDTO.java
+new file mode 100644
+index 0000000..67d3579
+--- /dev/null
++++ b/src/main/java/com/example/ordermgmt/dto/BulkOrderUpdateResultDTO.java
+@@ -0,0 +1,15 @@
++package com.example.ordermgmt.dto;
++
++import lombok.AllArgsConstructor;
++import lombok.Data;
++import lombok.NoArgsConstructor;
++
++import java.util.List;
++
++@Data
++@NoArgsConstructor
++@AllArgsConstructor
++public class BulkOrderUpdateResultDTO {
++    private List<OrderDTO> successes;
++    private List<BulkOrderFailureDTO> failures;
++}
+diff --git a/src/main/java/com/example/ordermgmt/entity/InventoryItem.java b/src/main/java/com/example/ordermgmt/entity/InventoryItem.java
+index f1a7d1a..220f2f3 100644
+--- a/src/main/java/com/example/ordermgmt/entity/InventoryItem.java
++++ b/src/main/java/com/example/ordermgmt/entity/InventoryItem.java
+@@ -8,12 +8,14 @@ import lombok.AllArgsConstructor;
+ import jakarta.validation.constraints.Min;
+ import jakarta.validation.constraints.AssertTrue;
+ import java.time.LocalDateTime;
++import java.util.List;
+ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+ import jakarta.persistence.EntityListeners;
+ import org.springframework.data.annotation.CreatedDate;
+ import org.springframework.data.annotation.LastModifiedDate;
+ import org.springframework.data.annotation.CreatedBy;
+ import org.springframework.data.annotation.LastModifiedBy;
++import jakarta.persistence.Version;
+ 
+ @Getter
+ @Setter
+@@ -43,7 +45,11 @@ public class InventoryItem {
+     private PricingCatalog pricingCatalog;
+ 
+     @OneToMany(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
+-    private java.util.List<PricingHistory> pricingHistoryLogs;
++    private List<PricingHistory> pricingHistoryLogs;
++
++    @Version
++    @Column(name = "version")
++    private Long version;
+ 
+     @AssertTrue(message = "Available stock must be greater than or equal to reserved stock")
+     public boolean isStockConsistent() {
+diff --git a/src/main/java/com/example/ordermgmt/repository/InventoryItemRepository.java b/src/main/java/com/example/ordermgmt/repository/InventoryItemRepository.java
+index a0d5949..ea34e5d 100644
+--- a/src/main/java/com/example/ordermgmt/repository/InventoryItemRepository.java
++++ b/src/main/java/com/example/ordermgmt/repository/InventoryItemRepository.java
+@@ -1,13 +1,18 @@
+ package com.example.ordermgmt.repository;
+ 
+ import com.example.ordermgmt.entity.InventoryItem;
++import jakarta.persistence.LockModeType;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Lock;
+ import org.springframework.data.jpa.repository.Modifying;
+ import org.springframework.data.jpa.repository.Query;
+ import org.springframework.data.repository.query.Param;
+ import org.springframework.stereotype.Repository;
+ import org.springframework.transaction.annotation.Transactional;
+ 
++import java.util.List;
++import java.util.Optional;
++
+ @Repository
+ public interface InventoryItemRepository extends JpaRepository<InventoryItem, String> {
+ 
+@@ -16,5 +21,13 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, St
+     void updateItemId(@Param("oldItemId") String oldItemId, @Param("newItemId") String newItemId);
+ 
+     @Query("SELECT i FROM InventoryItem i WHERE i.availableStock > 0 AND i.pricingCatalog.unitPrice IS NOT NULL")
+-    java.util.List<InventoryItem> findAvailableWithPricing();
++    List<InventoryItem> findAvailableWithPricing();
++
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    @Query("SELECT i FROM InventoryItem i WHERE i.itemId = :itemId")
++    Optional<InventoryItem> findByIdForUpdate(@Param("itemId") String itemId);
++
++    @Lock(LockModeType.PESSIMISTIC_WRITE)
++    @Query("SELECT i FROM InventoryItem i WHERE i.itemId IN :itemIds ORDER BY i.itemId")
++    List<InventoryItem> findAllByItemIdInForUpdate(@Param("itemIds") List<String> itemIds);
+ }
+diff --git a/src/main/java/com/example/ordermgmt/repository/OrdersRepository.java b/src/main/java/com/example/ordermgmt/repository/OrdersRepository.java
+index 3ee487b..40fd1e9 100644
+--- a/src/main/java/com/example/ordermgmt/repository/OrdersRepository.java
++++ b/src/main/java/com/example/ordermgmt/repository/OrdersRepository.java
+@@ -2,10 +2,13 @@ package com.example.ordermgmt.repository;
+ 
+ import com.example.ordermgmt.entity.Orders;
+ import org.springframework.data.jpa.repository.JpaRepository;
++import org.springframework.data.jpa.repository.Query;
++import org.springframework.data.repository.query.Param;
+ import org.springframework.stereotype.Repository;
+ import org.springframework.data.domain.Page;
+ import org.springframework.data.domain.Pageable;
+ 
++import java.time.LocalDateTime;
+ import java.util.List;
+ 
+ @Repository
+@@ -15,4 +18,8 @@ public interface OrdersRepository extends JpaRepository<Orders, String> {
+     Page<Orders> findByCustomerAppUserEmail(String email, Pageable pageable);
+ 
+     List<Orders> findByCustomerCustomerId(String customerId);
++
++    @Query("SELECT o FROM Orders o WHERE o.status.statusName = :statusName AND o.createdTimestamp < :cutoff")
++    List<Orders> findStalePendingOrders(@Param("statusName") String statusName,
++            @Param("cutoff") LocalDateTime cutoff);
+ }
+diff --git a/src/main/java/com/example/ordermgmt/repository/PricingHistoryRepository.java b/src/main/java/com/example/ordermgmt/repository/PricingHistoryRepository.java
+index 1f38578..898993a 100644
+--- a/src/main/java/com/example/ordermgmt/repository/PricingHistoryRepository.java
++++ b/src/main/java/com/example/ordermgmt/repository/PricingHistoryRepository.java
+@@ -5,9 +5,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
+ import org.springframework.stereotype.Repository;
+ 
+ import java.util.List;
++import java.util.Optional;
+ 
+ @Repository
+ public interface PricingHistoryRepository extends JpaRepository<PricingHistory, String> {
+ 
+     List<PricingHistory> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
++
++    Optional<PricingHistory> findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
+ }
+diff --git a/src/main/java/com/example/ordermgmt/scheduler/OrderAutoCancelScheduler.java b/src/main/java/com/example/ordermgmt/scheduler/OrderAutoCancelScheduler.java
+new file mode 100644
+index 0000000..2dc9108
+--- /dev/null
++++ b/src/main/java/com/example/ordermgmt/scheduler/OrderAutoCancelScheduler.java
+@@ -0,0 +1,58 @@
++package com.example.ordermgmt.scheduler;
++
++import com.example.ordermgmt.entity.Orders;
++import com.example.ordermgmt.exception.OrderNotFoundException;
++import com.example.ordermgmt.repository.OrdersRepository;
++import com.example.ordermgmt.service.impl.order.OrderTransitionHelper;
++import lombok.RequiredArgsConstructor;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.scheduling.annotation.Scheduled;
++import org.springframework.stereotype.Component;
++
++import java.time.LocalDateTime;
++import java.util.List;
++
++/**
++ * Background scheduler that auto-cancels PENDING orders older than 5 minutes.
++ * Each cancellation runs in its own transaction via OrderTransitionHelper.
++ */
++@Component
++@RequiredArgsConstructor
++public class OrderAutoCancelScheduler {
++
++    private static final Logger logger = LoggerFactory.getLogger(OrderAutoCancelScheduler.class);
++    private static final int STALE_MINUTES = 5;
++    private static final long SCHEDULE_INTERVAL_MS = 60_000L;
++    private static final String PENDING_STATUS = "PENDING";
++
++    private final OrdersRepository ordersRepository;
++    private final OrderTransitionHelper transitionHelper;
++
++    @Scheduled(fixedRate = SCHEDULE_INTERVAL_MS)
++    public void cancelStalePendingOrders() {
++        logger.info("Processing cancelStalePendingOrders for Scheduler");
++
++        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(STALE_MINUTES);
++        List<Orders> staleOrders = ordersRepository.findStalePendingOrders(PENDING_STATUS, cutoff);
++
++        if (staleOrders.isEmpty()) {
++            logger.info("cancelStalePendingOrders completed successfully for Scheduler: no stale orders found");
++            return;
++        }
++
++        logger.info("Found {} stale PENDING orders (older than {} min). Auto-cancelling...",
++                staleOrders.size(), STALE_MINUTES);
++
++        for (Orders order : staleOrders) {
++            try {
++                transitionHelper.cancelStalePendingOrder(order.getOrderId());
++            } catch (OrderNotFoundException e) {
++                logger.error("cancelStalePendingOrder failed for Order: {}: {}", order.getOrderId(), e.getMessage());
++            }
++        }
++
++        logger.info("cancelStalePendingOrders completed successfully for Scheduler: processed {} orders",
++                staleOrders.size());
++    }
++}
+diff --git a/src/main/java/com/example/ordermgmt/service/OrderService.java b/src/main/java/com/example/ordermgmt/service/OrderService.java
+index 270f539..3b0013f 100644
+--- a/src/main/java/com/example/ordermgmt/service/OrderService.java
++++ b/src/main/java/com/example/ordermgmt/service/OrderService.java
+@@ -1,6 +1,7 @@
+ package com.example.ordermgmt.service;
+ 
+ import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
++import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
+ import com.example.ordermgmt.dto.OrderDTO;
+ import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
+ import org.springframework.data.domain.Page;
+@@ -29,5 +30,5 @@ public interface OrderService {
+ 
+     OrderDTO updateOrderStatus(String orderId, OrderStatusUpdateDTO statusUpdate);
+ 
+-    List<OrderDTO> updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates);
++    BulkOrderUpdateResultDTO updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates);
+ }
+diff --git a/src/main/java/com/example/ordermgmt/service/impl/order/OrderInventoryManagerImpl.java b/src/main/java/com/example/ordermgmt/service/impl/order/OrderInventoryManagerImpl.java
+index 8fdec50..fab65bb 100644
+--- a/src/main/java/com/example/ordermgmt/service/impl/order/OrderInventoryManagerImpl.java
++++ b/src/main/java/com/example/ordermgmt/service/impl/order/OrderInventoryManagerImpl.java
+@@ -4,11 +4,13 @@ import com.example.ordermgmt.dto.OrderItemDTO;
+ import com.example.ordermgmt.entity.InventoryItem;
+ import com.example.ordermgmt.entity.OrderItem;
+ import com.example.ordermgmt.entity.Orders;
++import com.example.ordermgmt.entity.PricingHistory;
+ import com.example.ordermgmt.enums.OrderStatus;
+ import com.example.ordermgmt.exception.InsufficientStockException;
+ import com.example.ordermgmt.exception.InvalidOperationException;
+ import com.example.ordermgmt.repository.InventoryItemRepository;
+ import com.example.ordermgmt.repository.OrderItemRepository;
++import com.example.ordermgmt.repository.PricingHistoryRepository;
+ import lombok.RequiredArgsConstructor;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -16,7 +18,11 @@ import org.springframework.stereotype.Component;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+ import java.math.BigDecimal;
++import java.util.Comparator;
+ import java.util.List;
++import java.util.Map;
++import java.util.Optional;
++import java.util.function.Function;
+ import java.util.stream.Collectors;
+ 
+ @Component
+@@ -24,37 +30,56 @@ import java.util.stream.Collectors;
+ public class OrderInventoryManagerImpl {
+ 
+     private static final Logger logger = LoggerFactory.getLogger(OrderInventoryManagerImpl.class);
++
+     private final InventoryItemRepository inventoryRepository;
+     private final OrderItemRepository orderItemRepository;
++    private final PricingHistoryRepository pricingHistoryRepository;
+ 
++    /**
++     * Process order items with pessimistic locking and price-from-history.
++     * Items are sorted by itemId before lock acquisition to prevent deadlocks.
++     */
+     @Transactional
+     public List<OrderItemDTO> processAndSaveOrderItems(List<OrderItemDTO> items, Orders order) {
+-        return items.stream().map(itemReq -> {
+-            InventoryItem inventoryItem = inventoryRepository.findById(itemReq.getItemId())
+-                    .orElseThrow(() -> {
+-                        logger.error("Inventory item not found: {}", itemReq.getItemId());
+-                        return new InvalidOperationException("Item not found: " + itemReq.getItemId());
+-                    });
+-
+-            if (inventoryItem.getPricingCatalog() == null) {
+-                logger.error("Pricing missing for item: {}", itemReq.getItemId());
+-                throw new InvalidOperationException("Price not found for item ID: " + itemReq.getItemId());
++        logger.info("Processing processAndSaveOrderItems for Order: {}", order.getOrderId());
++        // 1. Sort by itemId for deterministic lock order (deadlock prevention)
++        List<OrderItemDTO> sortedItems = items.stream()
++                .sorted(Comparator.comparing(OrderItemDTO::getItemId))
++                .collect(Collectors.toList());
++
++        // 2. Batch lock all inventory items at once (sorted by itemId in the query)
++        List<String> itemIds = sortedItems.stream()
++                .map(OrderItemDTO::getItemId)
++                .collect(Collectors.toList());
++        Map<String, InventoryItem> lockedInventory = inventoryRepository
++                .findAllByItemIdInForUpdate(itemIds).stream()
++                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
++
++        // 3. Process each item against locked inventory
++        List<OrderItemDTO> result = sortedItems.stream().map(itemReq -> {
++            InventoryItem inventoryItem = lockedInventory.get(itemReq.getItemId());
++            if (inventoryItem == null) {
++                throw new InvalidOperationException("Item not found: " + itemReq.getItemId());
+             }
+ 
+-            if (inventoryItem.getAvailableStock() < itemReq.getQuantity()) {
+-                logger.warn("Insufficient stock for item: {}. Requested: {}, Available: {}",
+-                        itemReq.getItemId(), itemReq.getQuantity(), inventoryItem.getAvailableStock());
+-                throw new InsufficientStockException("Insufficient stock for item: " + inventoryItem.getItemName()
+-                        + " (ID: " + inventoryItem.getItemId() + ")");
++            // Validate stock availability
++            int effectiveAvailable = inventoryItem.getAvailableStock() - inventoryItem.getReservedStock();
++            if (effectiveAvailable < itemReq.getQuantity()) {
++                throw new InsufficientStockException("Insufficient stock for item: "
++                        + inventoryItem.getItemName() + " (ID: " + inventoryItem.getItemId()
++                        + "). Available: " + effectiveAvailable + ", Requested: " + itemReq.getQuantity());
+             }
+ 
++            // Get price from PricingHistory (immutable) — per commit 2a6f1a84d pattern
++            BigDecimal unitPrice = resolveUnitPrice(inventoryItem);
++
++            // Create and save OrderItem
+             OrderItem orderItem = new OrderItem();
+             orderItem.setId(new OrderItem.OrderItemId(order.getOrderId(), inventoryItem.getItemId()));
+             orderItem.setOrder(order);
+             orderItem.setInventoryItem(inventoryItem);
+             orderItem.setQuantity(itemReq.getQuantity());
+-            orderItem.setUnitPrice(inventoryItem.getPricingCatalog().getUnitPrice());
+-
++            orderItem.setUnitPrice(unitPrice);
+             orderItemRepository.save(orderItem);
+ 
+             return new OrderItemDTO(
+@@ -64,38 +89,112 @@ public class OrderInventoryManagerImpl {
+                     orderItem.getUnitPrice(),
+                     orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
+         }).collect(Collectors.toList());
++
++        logger.info("processAndSaveOrderItems completed successfully for Order: {}", order.getOrderId());
++        return result;
+     }
+ 
++    /**
++     * Handle inventory updates based on order status transitions.
++     * Uses pessimistic locking with deterministic lock order.
++     *
++     * State machine:
++     * PENDING → CONFIRMED: availableStock -= qty, reservedStock += qty
++     * CONFIRMED/PROCESSING → CANCELLED: availableStock += qty, reservedStock -= qty
++     * PENDING → CANCELLED: no change (nothing was reserved)
++     * PROCESSING → SHIPPED: no change
++     * SHIPPED → DELIVERED: reservedStock -= qty (final fulfillment)
++     */
+     @Transactional
+     public void handleInventoryUpdate(Orders order, OrderStatus currentStatus, OrderStatus nextStatus) {
++        logger.info("Processing handleInventoryUpdate for Order: {} ({} -> {})",
++                order.getOrderId(), currentStatus, nextStatus);
++
+         List<OrderItem> items = orderItemRepository.findByOrderOrderId(order.getOrderId());
+ 
++        if (items.isEmpty()) {
++            logger.warn("Skipping handleInventoryUpdate for Order: {} - no order items found", order.getOrderId());
++            return;
++        }
++
++        // Collect sorted itemIds for deterministic lock order
++        List<String> itemIds = items.stream()
++                .map(i -> i.getInventoryItem().getItemId())
++                .sorted()
++                .distinct()
++                .collect(Collectors.toList());
++        Map<String, InventoryItem> locked = inventoryRepository
++                .findAllByItemIdInForUpdate(itemIds).stream()
++                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
++
+         if (nextStatus == OrderStatus.CONFIRMED && currentStatus == OrderStatus.PENDING) {
++            // Reserve stock: available --, reserved ++
+             for (OrderItem item : items) {
+-                InventoryItem inv = item.getInventoryItem();
+-                if (inv.getAvailableStock() < item.getQuantity()) {
+-                    logger.error("Stock check failed for item {} during confirmation", inv.getItemId());
++                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
++                int effectiveAvailable = inv.getAvailableStock() - inv.getReservedStock();
++                if (effectiveAvailable < item.getQuantity()) {
+                     throw new InsufficientStockException(
+-                            "Insufficient stock for item: " + inv.getItemName() + " (ID: " + inv.getItemId() + ")");
++                            "Insufficient stock for item: " + inv.getItemName()
++                                    + " (ID: " + inv.getItemId() + ")");
+                 }
+                 inv.setAvailableStock(inv.getAvailableStock() - item.getQuantity());
+                 inv.setReservedStock(inv.getReservedStock() + item.getQuantity());
+                 inventoryRepository.save(inv);
++                logger.debug("CONFIRMED: Item {} — available: {}, reserved: {}",
++                        inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
+             }
+-        } else if (nextStatus == OrderStatus.CANCELLED &&
+-                (currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING)) {
++        } else if (nextStatus == OrderStatus.CANCELLED
++                && (currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING)) {
++            // Release reservation: available ++, reserved --
+             for (OrderItem item : items) {
+-                InventoryItem inv = item.getInventoryItem();
++                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                 inv.setAvailableStock(inv.getAvailableStock() + item.getQuantity());
+                 inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
+                 inventoryRepository.save(inv);
++                logger.debug("CANCELLED: Item {} — available: {}, reserved: {}",
++                        inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
+             }
+-        } else if (nextStatus == OrderStatus.SHIPPED && currentStatus == OrderStatus.PROCESSING) {
++        } else if (nextStatus == OrderStatus.DELIVERED && currentStatus == OrderStatus.SHIPPED) {
++            // Final fulfillment: reserved --
+             for (OrderItem item : items) {
+-                InventoryItem inv = item.getInventoryItem();
++                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                 inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
+                 inventoryRepository.save(inv);
++                logger.debug("DELIVERED: Item {} — reserved: {}",
++                        inv.getItemId(), inv.getReservedStock());
+             }
+         }
++        // PROCESSING → SHIPPED: no inventory change
++        // PENDING → CANCELLED: no inventory change (nothing was reserved)
++    }
++
++    /**
++     * Resolve unit price: prefer PricingHistory (immutable) over PricingCatalog
++     * (mutable).
++     * PricingHistory is the immutable audit trail as established in commit
++     * 2a6f1a84d.
++     */
++    private BigDecimal resolveUnitPrice(InventoryItem inventoryItem) {
++        // 1. Try PricingHistory first (immutable snapshot)
++        Optional<PricingHistory> latestHistory = pricingHistoryRepository
++                .findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(inventoryItem.getItemId());
++
++        if (latestHistory.isPresent()) {
++            logger.debug("Price for item {} resolved from PricingHistory: {}",
++                    inventoryItem.getItemId(), latestHistory.get().getNewPrice());
++            return latestHistory.get().getNewPrice();
++        }
++
++        // 2. Fallback to PricingCatalog (backward compatibility)
++        if (inventoryItem.getPricingCatalog() != null
++                && inventoryItem.getPricingCatalog().getUnitPrice() != null) {
++            logger.warn("Skipping PricingHistory for Item: {} - no history found, falling back to PricingCatalog: {}",
++                    inventoryItem.getItemId(), inventoryItem.getPricingCatalog().getUnitPrice());
++            return inventoryItem.getPricingCatalog().getUnitPrice();
++        }
++
++        throw new InvalidOperationException(
++                "Price not found for item ID: " + inventoryItem.getItemId()
++                        + ". Ensure pricing is configured before accepting orders.");
+     }
+ }
+diff --git a/src/main/java/com/example/ordermgmt/service/impl/order/OrderServiceImpl.java b/src/main/java/com/example/ordermgmt/service/impl/order/OrderServiceImpl.java
+index b9e69d3..4ed2152 100644
+--- a/src/main/java/com/example/ordermgmt/service/impl/order/OrderServiceImpl.java
++++ b/src/main/java/com/example/ordermgmt/service/impl/order/OrderServiceImpl.java
+@@ -1,5 +1,8 @@
+ package com.example.ordermgmt.service.impl.order;
+ 
++import com.example.ordermgmt.dto.BulkOrderFailureDTO;
++import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
++import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
+ import com.example.ordermgmt.dto.OrderDTO;
+ import com.example.ordermgmt.dto.OrderItemDTO;
+ import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
+@@ -7,13 +10,14 @@ import com.example.ordermgmt.entity.Customer;
+ import com.example.ordermgmt.entity.Orders;
+ import com.example.ordermgmt.entity.OrderStatusLookup;
+ import com.example.ordermgmt.enums.OrderStatus;
++import com.example.ordermgmt.exception.InsufficientStockException;
++import com.example.ordermgmt.exception.InvalidOperationException;
+ import com.example.ordermgmt.exception.OrderNotFoundException;
+ import com.example.ordermgmt.repository.OrdersRepository;
+ import com.example.ordermgmt.service.OrderService;
+ import lombok.RequiredArgsConstructor;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+-import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+ import org.springframework.data.domain.Page;
+ import org.springframework.data.domain.Pageable;
+ import org.springframework.stereotype.Service;
+@@ -34,11 +38,13 @@ public class OrderServiceImpl implements OrderService {
+     private static final String ORDER_ID_PREFIX = "ORD-";
+     private static final int ORDER_ID_SUFFIX_LENGTH = 8;
+     private static final int START_INDEX = 0;
++    private static final int MAX_ORDER_ID_RETRIES = 5;
+ 
+     private final OrdersRepository ordersRepository;
+     private final OrderValidatorImpl orderValidator;
+     private final OrderInventoryManagerImpl orderInventoryManager;
+     private final OrderMapperImpl orderMapper;
++    private final OrderTransitionHelper transitionHelper;
+ 
+     @Override
+     @Transactional
+@@ -48,7 +54,7 @@ public class OrderServiceImpl implements OrderService {
+         Customer customer = orderValidator.validateAndGetCustomer(email);
+         orderValidator.validateCustomerProfile(customer);
+ 
+-        String orderId = generateOrderId();
++        String orderId = generateUniqueOrderId();
+         OrderStatusLookup pendingStatus = orderValidator.getStatusOrThrow(OrderStatus.PENDING.name());
+ 
+         Orders order = new Orders();
+@@ -154,45 +160,46 @@ public class OrderServiceImpl implements OrderService {
+     @Transactional
+     public OrderDTO updateOrderStatus(String orderId, OrderStatusUpdateDTO statusUpdate) {
+         logger.info("Processing updateOrderStatus for Order: {}", orderId);
+-        return updateOrderInternal(orderId, statusUpdate.getNewStatus());
++        return transitionHelper.updateOrderInternal(orderId, statusUpdate.getNewStatus());
+     }
+ 
+     @Override
+-    @Transactional
+-    public List<OrderDTO> updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates) {
++    public BulkOrderUpdateResultDTO updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates) {
+         logger.info("Processing updateOrdersStatus for {} orders", updates.size());
+-        List<OrderDTO> results = new ArrayList<>();
++        List<OrderDTO> successes = new ArrayList<>();
++        List<BulkOrderFailureDTO> failures = new ArrayList<>();
+ 
+         for (BulkOrderStatusUpdateDTO update : updates) {
+-            results.add(updateOrderInternal(update.getOrderId(), update.getNewStatus()));
++            try {
++                OrderDTO result = transitionHelper.updateOrderInternal(
++                        update.getOrderId(), update.getNewStatus());
++                successes.add(result);
++            } catch (OrderNotFoundException | InvalidOperationException | InsufficientStockException e) {
++                logger.error("Bulk update failed for Order: {}: {}", update.getOrderId(), e.getMessage());
++                failures.add(new BulkOrderFailureDTO(update.getOrderId(), e.getMessage()));
++            }
+         }
+ 
+-        logger.info("updateOrdersStatus completed successfully for {} orders", updates.size());
+-        return results;
++        logger.info("updateOrdersStatus completed: {} successes, {} failures",
++                successes.size(), failures.size());
++        return new BulkOrderUpdateResultDTO(successes, failures);
+     }
+ 
+-    private OrderDTO updateOrderInternal(String orderId, String newStatusString) {
+-        String newStatusName = newStatusString.trim().toUpperCase();
+-
+-        Orders order = getOrderOrThrow(orderId);
+-        OrderStatus currentStatus = OrderStatus.valueOf(order.getStatus().getStatusName());
+-        OrderStatus nextStatus = OrderStatus.valueOf(newStatusName);
+-
+-        orderValidator.validateAdminTransition(currentStatus, nextStatus);
+-
+-        OrderStatusLookup nextStatusLookup = orderValidator.getStatusOrThrow(newStatusName);
+-
+-        orderInventoryManager.handleInventoryUpdate(order, currentStatus, nextStatus);
+-
+-        order.setStatus(nextStatusLookup);
+-        ordersRepository.save(order);
+-
+-        return orderMapper.convertToDTO(order);
+-    }
+-
+-    private String generateOrderId() {
+-        return ORDER_ID_PREFIX + UUID.randomUUID().toString()
+-                .substring(START_INDEX, ORDER_ID_SUFFIX_LENGTH).toUpperCase();
++    /**
++     * Generate unique order ID with collision retry (max 5 attempts).
++     */
++    private String generateUniqueOrderId() {
++        for (int i = 0; i < MAX_ORDER_ID_RETRIES; i++) {
++            String orderId = ORDER_ID_PREFIX + UUID.randomUUID().toString()
++                    .substring(START_INDEX, ORDER_ID_SUFFIX_LENGTH).toUpperCase();
++            if (!ordersRepository.existsById(orderId)) {
++                return orderId;
++            }
++            logger.warn("Order ID collision detected: {}. Retrying ({}/{})",
++                    orderId, i + 1, MAX_ORDER_ID_RETRIES);
++        }
++        throw new InvalidOperationException(
++                "Failed to generate unique order ID after " + MAX_ORDER_ID_RETRIES + " attempts");
+     }
+ 
+     private Orders getOrderOrThrow(String orderId) {
+diff --git a/src/main/java/com/example/ordermgmt/service/impl/order/OrderTransitionHelper.java b/src/main/java/com/example/ordermgmt/service/impl/order/OrderTransitionHelper.java
+new file mode 100644
+index 0000000..f20944a
+--- /dev/null
++++ b/src/main/java/com/example/ordermgmt/service/impl/order/OrderTransitionHelper.java
+@@ -0,0 +1,90 @@
++package com.example.ordermgmt.service.impl.order;
++
++import com.example.ordermgmt.dto.OrderDTO;
++import com.example.ordermgmt.entity.Orders;
++import com.example.ordermgmt.entity.OrderStatusLookup;
++import com.example.ordermgmt.enums.OrderStatus;
++import com.example.ordermgmt.exception.OrderNotFoundException;
++import com.example.ordermgmt.repository.OrdersRepository;
++import lombok.RequiredArgsConstructor;
++import org.slf4j.Logger;
++import org.slf4j.LoggerFactory;
++import org.springframework.stereotype.Component;
++import org.springframework.transaction.annotation.Propagation;
++import org.springframework.transaction.annotation.Transactional;
++
++/**
++ * Handles individual order status transitions in an isolated transaction.
++ * Uses REQUIRES_NEW propagation so that:
++ * - In bulk updates, one failure doesn't roll back other orders.
++ * - The auto-cancel scheduler can cancel each order independently.
++ */
++@Component
++@RequiredArgsConstructor
++public class OrderTransitionHelper {
++
++    private static final Logger logger = LoggerFactory.getLogger(OrderTransitionHelper.class);
++
++    private final OrdersRepository ordersRepository;
++    private final OrderValidatorImpl orderValidator;
++    private final OrderInventoryManagerImpl orderInventoryManager;
++    private final OrderMapperImpl orderMapper;
++
++    /**
++     * Perform a status transition for a single order in its own transaction.
++     */
++    @Transactional(propagation = Propagation.REQUIRES_NEW)
++    public OrderDTO updateOrderInternal(String orderId, String newStatusString) {
++        logger.info("Processing updateOrderInternal for Order: {}", orderId);
++
++        String newStatusName = newStatusString.trim().toUpperCase();
++
++        Orders order = ordersRepository.findById(orderId)
++                .orElseThrow(() -> {
++                    logger.warn("Skipping updateOrderInternal for Order: {} - Order not found", orderId);
++                    return new OrderNotFoundException("Order not found: " + orderId);
++                });
++
++        OrderStatus currentStatus = OrderStatus.valueOf(order.getStatus().getStatusName());
++        OrderStatus nextStatus = OrderStatus.valueOf(newStatusName);
++
++        orderValidator.validateAdminTransition(currentStatus, nextStatus);
++
++        OrderStatusLookup nextStatusLookup = orderValidator.getStatusOrThrow(newStatusName);
++        orderInventoryManager.handleInventoryUpdate(order, currentStatus, nextStatus);
++
++        order.setStatus(nextStatusLookup);
++        ordersRepository.save(order);
++
++        logger.info("updateOrderInternal completed successfully for Order: {} ({} -> {})",
++                orderId, currentStatus, nextStatus);
++        return orderMapper.convertToDTO(order);
++    }
++
++    /**
++     * Cancel a stale PENDING order. Used by the auto-cancel scheduler.
++     * Double-checks that the order is still PENDING before cancelling.
++     */
++    @Transactional(propagation = Propagation.REQUIRES_NEW)
++    public void cancelStalePendingOrder(String orderId) {
++        logger.info("Processing cancelStalePendingOrder for Order: {}", orderId);
++
++        Orders order = ordersRepository.findById(orderId)
++                .orElseThrow(() -> {
++                    logger.warn("Skipping cancelStalePendingOrder for Order: {} - Order not found", orderId);
++                    return new OrderNotFoundException("Order not found: " + orderId);
++                });
++
++        if (!OrderStatus.PENDING.name().equals(order.getStatus().getStatusName())) {
++            logger.warn("Skipping cancelStalePendingOrder for Order: {} - no longer PENDING (current: {})",
++                    orderId, order.getStatus().getStatusName());
++            return;
++        }
++
++        OrderStatusLookup cancelledStatus = orderValidator.getStatusOrThrow(OrderStatus.CANCELLED.name());
++        order.setStatus(cancelledStatus);
++        ordersRepository.save(order);
++
++        logger.info("cancelStalePendingOrder completed successfully for Order: {}", orderId);
++    }
++}
+diff --git a/src/main/resources/application.properties b/src/main/resources/application.properties
+index 2db0895..93c3c71 100644
+--- a/src/main/resources/application.properties
++++ b/src/main/resources/application.properties
+@@ -62,3 +62,13 @@ spring.data.redis.lettuce.pool.max-active=50
+ spring.data.redis.lettuce.pool.max-idle=10
+ spring.data.redis.lettuce.pool.min-idle=5
+ spring.data.redis.lettuce.pool.max-wait=500ms
++
++# --- Performance Tuning (HikariCP) ---
++spring.datasource.hikari.maximum-pool-size=50
++spring.datasource.hikari.minimum-idle=10
++spring.datasource.hikari.idle-timeout=30000
++spring.datasource.hikari.max-lifetime=1800000
++spring.datasource.hikari.connection-timeout=5000
++
++# Disable open-in-view to prevent lazy-loading outside transactions
++spring.jpa.open-in-view=false
+diff --git a/src/test/java/com/example/ordermgmt/controller/AdminOrderControllerTest.java b/src/test/java/com/example/ordermgmt/controller/AdminOrderControllerTest.java
+index 24535b2..a2b5bd1 100644
+--- a/src/test/java/com/example/ordermgmt/controller/AdminOrderControllerTest.java
++++ b/src/test/java/com/example/ordermgmt/controller/AdminOrderControllerTest.java
+@@ -1,6 +1,7 @@
+ package com.example.ordermgmt.controller;
+ 
+ import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
++import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
+ import com.example.ordermgmt.dto.OrderDTO;
+ import com.example.ordermgmt.service.OrderService;
+ import com.fasterxml.jackson.databind.ObjectMapper;
+@@ -15,7 +16,6 @@ import org.springframework.http.MediaType;
+ import org.springframework.test.web.servlet.MockMvc;
+ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+ 
+-import java.util.Arrays;
+ import java.util.Collections;
+ import java.util.List;
+ 
+@@ -88,16 +88,19 @@ class AdminOrderControllerTest {
+         OrderDTO order1 = new OrderDTO();
+         order1.setOrderId("order-1");
+         order1.setStatus("SHIPPED");
+-        List<OrderDTO> updatedOrders = Collections.singletonList(order1);
+ 
+-        when(orderService.updateOrdersStatus(any())).thenReturn(updatedOrders);
++        BulkOrderUpdateResultDTO result = new BulkOrderUpdateResultDTO(
++                Collections.singletonList(order1), Collections.emptyList());
++
++        when(orderService.updateOrdersStatus(any())).thenReturn(result);
+ 
+         mockMvc.perform(put("/api/admin/orders/status")
+                 .contentType(MediaType.APPLICATION_JSON)
+                 .content(objectMapper.writeValueAsString(updates)))
+                 .andExpect(status().isOk())
+-                .andExpect(jsonPath("$[0].orderId").value("order-1"))
+-                .andExpect(jsonPath("$[0].status").value("SHIPPED"));
++                .andExpect(jsonPath("$.successes[0].orderId").value("order-1"))
++                .andExpect(jsonPath("$.successes[0].status").value("SHIPPED"))
++                .andExpect(jsonPath("$.failures").isEmpty());
+     }
+ 
+     // List validation requires @Validated AOP which is not available in standalone
