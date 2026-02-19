@@ -1,5 +1,11 @@
 package com.example.ordermgmt.service.impl;
 
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Collections;
+import java.util.Optional;
 import com.example.ordermgmt.dto.LoginRequestDTO;
 import com.example.ordermgmt.dto.LoginResponseDTO;
 import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
@@ -34,6 +40,7 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+    private static final long REFRESH_TOKEN_VALIDITY_MS = 1000L * 60 * 60 * 24 * 7; // 7 days
 
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
@@ -82,10 +89,19 @@ public class AuthServiceImpl implements AuthService {
         newUser.setRole(role);
         newUser.setIsActive(true);
 
-        appUserRepository.save(newUser);
+        // Set security context for auditing
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                request.getEmail(), null, Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
-            createEmptyCustomerProfile(newUser);
+        try {
+            appUserRepository.save(newUser);
+
+            if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
+                createEmptyCustomerProfile(newUser);
+            }
+        } finally {
+            SecurityContextHolder.clearContext();
         }
 
         logger.info("registerUser completed successfully for User: {}", request.getEmail());
@@ -121,7 +137,19 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
-        RefreshToken refreshToken = createRefreshToken(user);
+
+        // Set security context for auditing
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                user.getEmail(), null,
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        RefreshToken refreshToken;
+        try {
+            refreshToken = createRefreshToken(user);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
 
         logger.info("loginUser completed successfully for User: {}", request.getEmail());
 
@@ -154,7 +182,19 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
-        RefreshToken newRefreshToken = createRefreshToken(user);
+
+        // Set security context for auditing
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                user.getEmail(), null,
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        RefreshToken newRefreshToken;
+        try {
+            newRefreshToken = createRefreshToken(user);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
 
         logger.info("refreshToken completed successfully for User: {}", user.getEmail());
         return new RefreshTokenResponseDTO(newAccessToken, newRefreshToken.getToken(), "Bearer",
@@ -183,7 +223,7 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setTokenId(UUID.randomUUID().toString());
         refreshToken.setAppUser(user);
-        refreshToken.setExpiryDate(Instant.now().plusMillis(1000L * 60 * 60 * 24 * 7));
+        refreshToken.setExpiryDate(Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY_MS));
         refreshToken.setToken(UUID.randomUUID().toString());
         refreshToken.setRevoked(false);
 

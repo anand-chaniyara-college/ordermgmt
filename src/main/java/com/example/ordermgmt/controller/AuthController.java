@@ -12,6 +12,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.ordermgmt.service.RateLimitingService;
+import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -22,16 +24,28 @@ public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final int RATE_LIMIT_REQUESTS = 1;
+    private static final int RATE_LIMIT_WINDOW_SECONDS = 60;
 
     private final AuthService authService;
+    private final RateLimitingService rateLimitingService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, RateLimitingService rateLimitingService) {
         this.authService = authService;
+        this.rateLimitingService = rateLimitingService;
     }
 
     @PostMapping("/register")
     @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN)")
-    public ResponseEntity<RegistrationResponseDTO> register(@Valid @RequestBody RegistrationRequestDTO request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegistrationRequestDTO request,
+            HttpServletRequest servletRequest) {
+        String clientIp = getClientIp(servletRequest);
+
+        if (!rateLimitingService.allowRequest(clientIp, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SECONDS)) {
+            logger.warn("Rate limit exceeded for IP: {}", clientIp);
+            return ResponseEntity.status(429).body("Too many registration attempts. Please try again later.");
+        }
+
         logger.info("Processing register for User: {}", request.getEmail());
         authService.registerUser(request);
         logger.info("register completed successfully for User: {}", request.getEmail());
@@ -68,5 +82,13 @@ public class AuthController {
         authService.logoutUser(request, accessToken);
         logger.info("logout completed successfully for User");
         return ResponseEntity.ok("Logged out successfully");
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String xfHeader = request.getHeader("X-Forwarded-For");
+        if (xfHeader == null || xfHeader.isEmpty()) {
+            return request.getRemoteAddr();
+        }
+        return xfHeader.split(",")[0];
     }
 }
