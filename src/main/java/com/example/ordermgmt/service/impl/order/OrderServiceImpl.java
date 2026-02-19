@@ -13,10 +13,14 @@ import com.example.ordermgmt.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -76,6 +80,16 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<OrderDTO> getCustomerOrders(String email, Pageable pageable) {
+        logger.info("Processing getCustomerOrders (Page) for Customer: {}", email);
+        Page<OrderDTO> orders = ordersRepository.findByCustomerAppUserEmail(email, pageable)
+                .map(orderMapper::convertToDTO);
+        logger.info("getCustomerOrders (Page) completed successfully for Customer: {}", email);
+        return orders;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public OrderDTO getCustomerOrderById(String orderId, String email) {
         logger.info("Processing getCustomerOrderById for Order: {}, Customer: {}", orderId, email);
         Orders order = getOrderOrThrow(orderId);
@@ -119,6 +133,16 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional(readOnly = true)
+    public Page<OrderDTO> getAllOrders(Pageable pageable) {
+        logger.info("Processing getAllOrders (Page) for Admin");
+        Page<OrderDTO> orders = ordersRepository.findAll(pageable)
+                .map(orderMapper::convertToDTO);
+        logger.info("getAllOrders (Page) completed successfully for Admin");
+        return orders;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public OrderDTO getOrderById(String orderId) {
         logger.info("Processing getOrderById for Order: {}", orderId);
         Orders order = getOrderOrThrow(orderId);
@@ -129,8 +153,26 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderDTO updateOrderStatus(String orderId, OrderStatusUpdateDTO statusUpdate) {
-        String newStatusName = statusUpdate.getNewStatus().trim().toUpperCase();
-        logger.info("Processing updateOrderStatus for Order: {} to {}", orderId, newStatusName);
+        logger.info("Processing updateOrderStatus for Order: {}", orderId);
+        return updateOrderInternal(orderId, statusUpdate.getNewStatus());
+    }
+
+    @Override
+    @Transactional
+    public List<OrderDTO> updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates) {
+        logger.info("Processing updateOrdersStatus for {} orders", updates.size());
+        List<OrderDTO> results = new ArrayList<>();
+
+        for (BulkOrderStatusUpdateDTO update : updates) {
+            results.add(updateOrderInternal(update.getOrderId(), update.getNewStatus()));
+        }
+
+        logger.info("updateOrdersStatus completed successfully for {} orders", updates.size());
+        return results;
+    }
+
+    private OrderDTO updateOrderInternal(String orderId, String newStatusString) {
+        String newStatusName = newStatusString.trim().toUpperCase();
 
         Orders order = getOrderOrThrow(orderId);
         OrderStatus currentStatus = OrderStatus.valueOf(order.getStatus().getStatusName());
@@ -145,7 +187,6 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(nextStatusLookup);
         ordersRepository.save(order);
 
-        logger.info("updateOrderStatus completed successfully for Order: {}", orderId);
         return orderMapper.convertToDTO(order);
     }
 

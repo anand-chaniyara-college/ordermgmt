@@ -8,15 +8,14 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import io.swagger.v3.oas.annotations.Parameter;
 
 import java.util.List;
 
@@ -40,23 +39,35 @@ public class CustomerOrderController {
     }
 
     @GetMapping
-    @Operation(summary = "View My Order History", description = "Get a complete record of all the orders you have placed in the past")
-    public ResponseEntity<List<OrderDTO>> getMyOrders(Authentication authentication) {
+    @Operation(summary = "View My Orders (Merged)", description = "Get your orders. Returns specific order if orderId provided, paginated result if page/size provided, or full list otherwise. Always returns a list format.")
+    public ResponseEntity<?> getMyOrders(
+            Authentication authentication,
+            @Parameter(description = "Specific Order ID to retrieve") @RequestParam(required = false) String orderId,
+            @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
+
         String email = authentication.getName();
+
+        if (orderId != null && !orderId.isEmpty()) {
+            logger.info("Processing getMyOrders for specific Order: {}, Customer: {}", orderId, email);
+            OrderDTO order = orderService.getCustomerOrderById(orderId, email);
+            logger.info("getMyOrders completed successfully for Order: {}", orderId);
+            // Returning as a List containing the single object as strictly requested
+            return ResponseEntity.ok(List.of(order));
+        }
+
+        if (page != null && size != null) {
+            logger.info("Processing getMyOrders (Page) for Customer: {} - Page: {}, Size: {}", email, page, size);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<OrderDTO> orders = orderService.getCustomerOrders(email, pageable);
+            logger.info("getMyOrders (Page) completed successfully for Customer: {}", email);
+            return ResponseEntity.ok(orders);
+        }
+
         logger.info("Processing getMyOrders for Customer: {}", email);
         List<OrderDTO> orders = orderService.getCustomerOrders(email);
         logger.info("getMyOrders completed successfully for Customer: {}", email);
         return ResponseEntity.ok(orders);
-    }
-
-    @GetMapping("/{orderId}")
-    @Operation(summary = "Get Order Details", description = "See the items, status, and total cost for a specific order by its ID")
-    public ResponseEntity<OrderDTO> getMyOrderById(@PathVariable String orderId, Authentication authentication) {
-        String email = authentication.getName();
-        logger.info("Processing getMyOrderById for Order: {}", orderId);
-        OrderDTO order = orderService.getCustomerOrderById(orderId, email);
-        logger.info("getMyOrderById completed successfully for Order: {}", orderId);
-        return ResponseEntity.ok(order);
     }
 
     @PutMapping("/{orderId}/cancel")

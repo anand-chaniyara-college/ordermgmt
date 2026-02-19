@@ -13,10 +13,18 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import io.swagger.v3.oas.annotations.Parameter;
+
+import org.springframework.validation.annotation.Validated;
 
 @RestController
 @RequestMapping("/api/admin/orders")
 @RequiredArgsConstructor
+@Validated
 @Tag(name = "4. Order Management (Admin)", description = "Tools for administrators to oversee and manage all customer orders")
 public class AdminOrderController {
 
@@ -24,30 +32,41 @@ public class AdminOrderController {
     private final OrderService orderService;
 
     @GetMapping
-    @Operation(summary = "View All Orders", description = "Get a list of every order placed in the system")
-    public ResponseEntity<List<OrderDTO>> getAllOrders() {
+    @Operation(summary = "View Orders", description = "Get orders. Returns specific order if orderId provided, paginated result if page/size provided, or full list otherwise. Always returns a list format as requested.")
+    public ResponseEntity<?> getAllOrders(
+            @Parameter(description = "Specific Order ID to retrieve") @RequestParam(required = false) String orderId,
+            @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
+
+        if (orderId != null && !orderId.isEmpty()) {
+            logger.info("Processing getAllOrders for specific Order: {}", orderId);
+            OrderDTO order = orderService.getOrderById(orderId);
+            logger.info("getAllOrders completed successfully for Order: {}", orderId);
+            // Returning as a List containing the single object as strictly requested
+            return ResponseEntity.ok(List.of(order));
+        }
+
+        if (page != null && size != null) {
+            logger.info("Processing getAllOrders (Page) for Admin - Page: {}, Size: {}", page, size);
+            Pageable pageable = PageRequest.of(page, size);
+            Page<OrderDTO> orders = orderService.getAllOrders(pageable);
+            logger.info("getAllOrders (Page) completed successfully for Admin");
+            return ResponseEntity.ok(orders);
+        }
+
         logger.info("Processing getAllOrders for Admin");
         List<OrderDTO> orders = orderService.getAllOrders();
         logger.info("getAllOrders completed successfully for Admin");
         return ResponseEntity.ok(orders);
     }
 
-    @GetMapping("/{orderId}")
-    @Operation(summary = "View Detailed Order", description = "Get full details of a specific order using its unique ID")
-    public ResponseEntity<OrderDTO> getOrderById(@PathVariable String orderId) {
-        logger.info("Processing getOrderById for Order: {}", orderId);
-        OrderDTO order = orderService.getOrderById(orderId);
-        logger.info("getOrderById completed successfully for Order: {}", orderId);
-        return ResponseEntity.ok(order);
-    }
-
-    @PutMapping("/{orderId}/status")
-    @Operation(summary = "Update Order Status", description = "Change the progress of an order (e.g., mark as Shipped or Delivered)")
-    public ResponseEntity<OrderDTO> updateOrderStatus(@PathVariable String orderId,
-            @Valid @RequestBody OrderStatusUpdateDTO statusUpdate) {
-        logger.info("Processing updateOrderStatus for Order: {}", orderId);
-        OrderDTO updatedOrder = orderService.updateOrderStatus(orderId, statusUpdate);
-        logger.info("updateOrderStatus completed successfully for Order: {}", orderId);
-        return ResponseEntity.ok(updatedOrder);
+    @PutMapping("/status")
+    @Operation(summary = "Bulk Update Order Status", description = "Update the status of multiple orders at once")
+    public ResponseEntity<List<OrderDTO>> updateOrderStatusBulk(
+            @Valid @RequestBody List<BulkOrderStatusUpdateDTO> updates) {
+        logger.info("Processing updateOrderStatusBulk for {} orders", updates.size());
+        List<OrderDTO> updatedOrders = orderService.updateOrdersStatus(updates);
+        logger.info("updateOrderStatusBulk completed successfully");
+        return ResponseEntity.ok(updatedOrders);
     }
 }
