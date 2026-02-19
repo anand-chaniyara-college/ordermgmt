@@ -30,15 +30,14 @@ public class ProductServiceImpl implements ProductService {
     public List<ProductDTO> getAvailableProducts() {
         logger.info("Processing getAvailableProducts for Customer");
 
-        List<InventoryItem> items = inventoryItemRepository.findAll();
+        List<InventoryItem> items = inventoryItemRepository.findAvailableWithPricing();
 
         if (items.isEmpty()) {
-            logger.warn("No items found in inventory");
+            logger.warn("No available products found");
             return List.of();
         }
 
         List<ProductDTO> available = items.stream()
-                .filter(this::isAvailable)
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
 

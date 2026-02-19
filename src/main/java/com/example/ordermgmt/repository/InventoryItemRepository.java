@@ -14,4 +14,7 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, St
     @Modifying
     @Query(value = "UPDATE ordermgmt.INVENTORY_ITEM SET itemid = :newItemId WHERE itemid = :oldItemId", nativeQuery = true)
     void updateItemId(@Param("oldItemId") String oldItemId, @Param("newItemId") String newItemId);
+
+    @Query("SELECT i FROM InventoryItem i WHERE i.availableStock > 0 AND i.pricingCatalog.unitPrice IS NOT NULL")
+    java.util.List<InventoryItem> findAvailableWithPricing();
 }
