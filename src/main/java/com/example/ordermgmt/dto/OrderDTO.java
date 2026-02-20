@@ -1,5 +1,6 @@
 package com.example.ordermgmt.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import lombok.AllArgsConstructor;
@@ -20,6 +21,7 @@ public class OrderDTO {
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String orderId;
 
+    @JsonIgnore
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String customerId;
 

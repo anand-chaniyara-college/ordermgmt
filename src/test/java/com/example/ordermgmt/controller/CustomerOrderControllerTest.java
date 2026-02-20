@@ -78,6 +78,6 @@ class CustomerOrderControllerTest {
         mockMvc.perform(get("/api/customer/orders")
                 .principal(mockPrincipal))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderId").value("order-123"));
+                .andExpect(jsonPath("$.orders[0].orderId").value("order-123"));
     }
 }

@@ -71,7 +71,7 @@ class CustomerControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(profile)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$").value("Profile updated successfully"));
+                .andExpect(jsonPath("$.message").value("Profile updated successfully"));
     }
 
     @Test

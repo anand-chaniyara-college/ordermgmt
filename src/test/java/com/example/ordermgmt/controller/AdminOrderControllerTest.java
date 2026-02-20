@@ -1,6 +1,7 @@
 package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
+import com.example.ordermgmt.dto.BulkOrderStatusUpdateWrapperDTO;
 import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.service.OrderService;
@@ -54,7 +55,7 @@ class AdminOrderControllerTest {
 
         mockMvc.perform(get("/api/admin/orders"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderId").value("order-1"));
+                .andExpect(jsonPath("$.orders[0].orderId").value("order-1"));
     }
 
     @Test
@@ -67,7 +68,7 @@ class AdminOrderControllerTest {
         mockMvc.perform(get("/api/admin/orders")
                 .param("orderId", "order-123"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderId").value("order-123"));
+                .andExpect(jsonPath("$.orders[0].orderId").value("order-123"));
     }
 
     @Test
@@ -94,9 +95,11 @@ class AdminOrderControllerTest {
 
         when(orderService.updateOrdersStatus(any())).thenReturn(result);
 
+        BulkOrderStatusUpdateWrapperDTO wrapper = new BulkOrderStatusUpdateWrapperDTO(updates);
+
         mockMvc.perform(put("/api/admin/orders/status")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(updates)))
+                .content(objectMapper.writeValueAsString(wrapper)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.successes[0].orderId").value("order-1"))
                 .andExpect(jsonPath("$.successes[0].status").value("SHIPPED"))

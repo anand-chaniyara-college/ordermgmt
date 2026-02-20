@@ -77,7 +77,7 @@ class OrderServiceImplTest {
         // Assert
         assertNotNull(result);
         assertEquals("PENDING", result.getStatus());
-        verify(ordersRepository, times(1)).save(any(Orders.class));
+        verify(ordersRepository, times(1)).saveAndFlush(any(Orders.class));
         verify(orderValidator).validateCustomerProfile(customer);
     }
 
@@ -112,7 +112,8 @@ class OrderServiceImplTest {
         });
 
         assertTrue(exception.getMessage().contains("Insufficient stock"));
-        verify(ordersRepository, times(1)).save(any(Orders.class)); // Order IS saved before items procesed in impl
+        verify(ordersRepository, times(1)).saveAndFlush(any(Orders.class)); // Order IS saved before items processed in
+                                                                            // impl
     }
 
     @Test

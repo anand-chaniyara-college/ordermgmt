@@ -7,6 +7,8 @@ import com.example.ordermgmt.repository.InventoryItemRepository;
 import com.example.ordermgmt.service.ProductService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
@@ -43,6 +45,21 @@ public class ProductServiceImpl implements ProductService {
 
         logger.info("getAvailableProducts completed successfully for Customer - Found {} products", available.size());
         return available;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ProductDTO> getAvailableProducts(Pageable pageable) {
+        logger.info("Processing getAvailableProducts (Page) for Customer - Page: {}, Size: {}",
+                pageable.getPageNumber(), pageable.getPageSize());
+
+        Page<ProductDTO> products = inventoryItemRepository.findAvailableWithPricing(pageable)
+                .map(this::convertToDTO);
+
+        logger.info(
+                "getAvailableProducts (Page) completed successfully for Customer - Found {} products (page {} of {})",
+                products.getNumberOfElements(), products.getNumber(), products.getTotalPages());
+        return products;
     }
 
     private boolean isAvailable(InventoryItem item) {

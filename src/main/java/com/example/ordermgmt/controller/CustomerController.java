@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/customer")
@@ -29,15 +30,14 @@ public class CustomerController {
     }
 
     @GetMapping("/profile")
-    @Operation(summary = "Get Profile Info", description = "Retrieve the name, email, and address of the currently logged-in user")
+    @Operation(summary = "Get Profile Info", description = "Retrieve the name, email, and address of the currently logged-in user. Email is included as a read-only field.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
-            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Profile retrieved successfully", content = @Content(schema = @Schema(implementation = CustomerProfileDTO.class))),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Customer profile not found", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<CustomerProfileDTO> getProfile() {
+    public ResponseEntity<CustomerProfileDTO> getProfile() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         logger.info("Processing getProfile for Customer: {}", email);
         CustomerProfileDTO profile = customerService.getCustomerProfile(email);
@@ -46,19 +46,18 @@ public ResponseEntity<CustomerProfileDTO> getProfile() {
     }
 
     @PutMapping("/profile")
-    @Operation(summary = "Update Profile Info", description = "Modify your name, phone number, or address")
+    @Operation(summary = "Update Profile Info", description = "Modify your name, phone number, or address. Email cannot be updated — providing a different email will return an error. Response: {\"message\": \"Profile updated successfully\"}")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
-            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Profile updated — returns {\"message\": \"...\"}", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid input or email modification attempted", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<String> updateProfile(@Valid @RequestBody CustomerProfileDTO profileDTO) {
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody CustomerProfileDTO profileDTO) {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         logger.info("Processing updateProfile for Customer: {}", email);
         String result = customerService.updateCustomerProfile(email, profileDTO);
         logger.info("updateProfile completed successfully for Customer: {}", email);
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(Map.of("message", result));
     }
 }

@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Repository
 public interface InventoryItemRepository extends JpaRepository<InventoryItem, String> {
@@ -22,6 +24,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, St
 
     @Query("SELECT i FROM InventoryItem i WHERE i.availableStock > 0 AND i.pricingCatalog.unitPrice IS NOT NULL")
     List<InventoryItem> findAvailableWithPricing();
+
+    @Query("SELECT i FROM InventoryItem i WHERE i.availableStock > 0 AND i.pricingCatalog.unitPrice IS NOT NULL")
+    Page<InventoryItem> findAvailableWithPricing(Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM InventoryItem i WHERE i.itemId = :itemId")

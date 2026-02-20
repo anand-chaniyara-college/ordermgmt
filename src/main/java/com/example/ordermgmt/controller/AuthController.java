@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import com.example.ordermgmt.service.RateLimitingService;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Map;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -41,11 +42,11 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN)")
+    @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN). Rate-limited to 1 request per minute per IP.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "User registered successfully", content = @Content(schema = @Schema(implementation = RegistrationResponseDTO.class))),
             @ApiResponse(responseCode = "400", description = "Invalid input or email already exists", content = @Content),
-            @ApiResponse(responseCode = "429", description = "Too many registration attempts", content = @Content)
+            @ApiResponse(responseCode = "429", description = "Too many registration attempts — returns {\"message\": \"...\"}", content = @Content)
     })
     @SecurityRequirements() // No auth required
     public ResponseEntity<?> register(@Valid @RequestBody RegistrationRequestDTO request,
@@ -54,7 +55,8 @@ public class AuthController {
 
         if (!rateLimitingService.allowRequest(clientIp, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SECONDS)) {
             logger.warn("Rate limit exceeded for IP: {}", clientIp);
-            return ResponseEntity.status(429).body("Too many registration attempts. Please try again later.");
+            return ResponseEntity.status(429)
+                    .body(Map.of("message", "Too many registration attempts. Please try again later."));
         }
 
         logger.info("Processing register for User: {}", request.getEmail());
@@ -94,18 +96,18 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    @Operation(summary = "Sign Out", description = "End your current session and invalidate your security token")
+    @Operation(summary = "Sign Out", description = "End your current session and invalidate your security token. Returns {\"message\": \"Logged out successfully\"}")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Logged out successfully", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Logged out successfully — returns {\"message\": \"...\"}", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
     })
-    public ResponseEntity<String> logout(@Valid @RequestBody RefreshTokenRequestDTO request,
+    public ResponseEntity<?> logout(@Valid @RequestBody RefreshTokenRequestDTO request,
             @RequestHeader("Authorization") String authHeader) {
         logger.info("Processing logout for User");
         String accessToken = authHeader.replace(BEARER_PREFIX, "");
         authService.logoutUser(request, accessToken);
         logger.info("logout completed successfully for User");
-        return ResponseEntity.ok("Logged out successfully");
+        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
     }
 
     private String getClientIp(HttpServletRequest request) {

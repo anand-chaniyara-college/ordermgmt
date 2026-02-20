@@ -19,6 +19,9 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import com.example.ordermgmt.dto.AddStockRequestDTO;
+import com.example.ordermgmt.dto.AddStockWrapperDTO;
+import com.example.ordermgmt.dto.InventoryItemWrapperDTO;
+import java.util.Map;
 
 import java.util.List;
 
@@ -35,7 +38,14 @@ public class InventoryController {
     }
 
     @GetMapping
-    @Operation(summary = "View Inventory (Merged)", description = "Get inventory items. Returns specific item if itemId provided, paginated result if page/size provided, or full list otherwise.")
+    @Operation(summary = "View Inventory", description = "Get inventory items. With itemId: returns single InventoryItemDTO. With page+size: returns paginated Page<InventoryItemDTO>. Otherwise: returns {\"inventory\": [...]}.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Inventory retrieved successfully", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Item not found", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
     public ResponseEntity<?> getInventory(
             @Parameter(description = "Specific Item ID to retrieve") @RequestParam(required = false) String itemId,
             @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
@@ -59,60 +69,70 @@ public class InventoryController {
         logger.info("Processing getInventory (List) for Admin");
         List<InventoryItemDTO> inventory = inventoryService.getAllInventory();
         logger.info("getInventory (List) completed successfully for Admin");
-        return ResponseEntity.ok(inventory);
+        return ResponseEntity.ok(Map.of("inventory", inventory));
     }
 
     @PostMapping
-    @Operation(summary = "Add Inventory Items", description = "Add multiple inventory items in bulk")
+    @Operation(summary = "Add Inventory Items", description = "Add multiple inventory items in bulk. Request body: {\"inventory\": [{\"itemId\":\"...\",\"itemName\":\"...\",\"availableStock\":...},...]}. Response: {\"items\": [...]}")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "201", description = "Items created — returns {\"items\": [...]}", content = @Content),
             @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<List<String>> addInventoryItems(@Valid @RequestBody List<InventoryItemDTO> items) {
+    public ResponseEntity<?> addInventoryItems(@Valid @RequestBody InventoryItemWrapperDTO wrapper) {
+        List<InventoryItemDTO> items = wrapper.getInventory();
         logger.info("Processing addInventoryItems for {} items", items.size());
         List<String> result = inventoryService.addInventoryItems(items);
         logger.info("addInventoryItems completed successfully");
-        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(result);
+        return ResponseEntity.status(org.springframework.http.HttpStatus.CREATED).body(Map.of("items", result));
     }
 
     @PostMapping("/addstock")
-    @Operation(summary = "Add Stock", description = "Add stock to existing inventory items")
+    @Operation(summary = "Add Stock", description = "Add stock to existing inventory items. Request body: {\"addstock\": [{\"itemId\":\"...\",\"addStock\":...},...]}. Response: {\"items\": [...]}")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Stock added — returns {\"items\": [...]}", content = @Content),
             @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<List<String>> addStock(
-            @Valid @RequestBody List<AddStockRequestDTO> items) {
+    public ResponseEntity<?> addStock(
+            @Valid @RequestBody AddStockWrapperDTO wrapper) {
+        List<AddStockRequestDTO> items = wrapper.getAddstock();
         logger.info("Processing addStock for {} items", items.size());
         List<String> result = inventoryService.addStock(items);
         logger.info("addStock completed successfully");
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(Map.of("items", result));
     }
 
     @PutMapping
-    @Operation(summary = "Update Inventory Items", description = "Update multiple inventory items in bulk")
+    @Operation(summary = "Update Inventory Items", description = "Update multiple inventory items in bulk. Request body: {\"inventory\": [...]}. Response: {\"items\": [...]}")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Items updated — returns {\"items\": [...]}", content = @Content),
             @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<List<String>> updateInventoryItems(@Valid @RequestBody List<InventoryItemDTO> items) {
+    public ResponseEntity<?> updateInventoryItems(@Valid @RequestBody InventoryItemWrapperDTO wrapper) {
+        List<InventoryItemDTO> items = wrapper.getInventory();
         logger.info("Processing updateInventoryItems for {} items", items.size());
         List<String> result = inventoryService.updateInventoryItems(items);
         logger.info("updateInventoryItems completed successfully");
-        return ResponseEntity.ok(result);
+        return ResponseEntity.ok(Map.of("items", result));
     }
 
     @DeleteMapping("/{ids}")
-    @Operation(summary = "Delete Inventory Items", description = "Delete multiple inventory items by ID (comma-separated)")
+    @Operation(summary = "Delete Inventory Items", description = "Delete multiple inventory items by comma-separated IDs in path. Returns 204 No Content on success.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Items deleted successfully", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Item not found", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
     public ResponseEntity<Void> deleteInventoryItems(@PathVariable List<String> ids) {
         logger.info("Processing deleteInventoryItems for IDs: {}", ids);
         inventoryService.deleteInventoryItems(ids);

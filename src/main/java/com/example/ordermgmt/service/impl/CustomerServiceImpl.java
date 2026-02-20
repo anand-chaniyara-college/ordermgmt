@@ -56,6 +56,11 @@ public class CustomerServiceImpl implements CustomerService {
     public String updateCustomerProfile(String email, CustomerProfileDTO profileDTO) {
         logger.info("Processing updateCustomerProfile for Customer: {}", email);
 
+        if (profileDTO.getEmail() != null && !profileDTO.getEmail().equalsIgnoreCase(email)) {
+            logger.warn("updateCustomerProfile rejected for Customer: {} - Email modification not allowed", email);
+            throw new com.example.ordermgmt.exception.InvalidOperationException("Email cannot be updated");
+        }
+
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> {
                     logger.error("updateCustomerProfile failed for Customer: {} - User not found", email);

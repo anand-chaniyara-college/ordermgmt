@@ -62,7 +62,7 @@ public class OrderServiceImpl implements OrderService {
         order.setCustomer(customer);
         order.setStatus(pendingStatus);
 
-        ordersRepository.save(order);
+        ordersRepository.saveAndFlush(order);
         logger.info("Order entity saved with ID: {}", orderId);
 
         List<OrderItemDTO> itemDTOs = orderInventoryManager.processAndSaveOrderItems(request.getItems(), order);

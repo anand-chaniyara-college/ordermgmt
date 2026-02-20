@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import io.swagger.v3.oas.annotations.Parameter;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/customer/orders")
@@ -34,15 +35,14 @@ public class CustomerOrderController {
     private final OrderService orderService;
 
     @PostMapping
-    @Operation(summary = "Place a New Order", description = "Create a new shopping order by providing the items and shipping information")
+    @Operation(summary = "Place a New Order", description = "Create a new shopping order by providing the items. Response includes orderId, status, timestamps, items with prices, and totalAmount. customerId is excluded from response.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
-            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "201", description = "Order created successfully", content = @Content(schema = @Schema(implementation = OrderDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid request — missing items, invalid quantity, or insufficient stock", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request, Authentication authentication) {
+    public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request, Authentication authentication) {
         String email = authentication.getName();
         logger.info("Processing createOrder for Customer: {}", email);
         OrderDTO order = orderService.createOrder(request, email);
@@ -51,7 +51,13 @@ public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request
     }
 
     @GetMapping
-    @Operation(summary = "View My Orders (Merged)", description = "Get your orders. Returns specific order if orderId provided, paginated result if page/size provided, or full list otherwise. Always returns a list format.")
+    @Operation(summary = "View My Orders", description = "Get your orders. With orderId: returns {\"orders\": [order]}. With page+size: returns paginated Page<OrderDTO>. Otherwise: returns {\"orders\": [...]}. customerId is excluded from all responses.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Orders retrieved successfully", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Order not found", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
     public ResponseEntity<?> getMyOrders(
             Authentication authentication,
             @Parameter(description = "Specific Order ID to retrieve") @RequestParam(required = false) String orderId,
@@ -64,8 +70,7 @@ public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request
             logger.info("Processing getMyOrders for specific Order: {}, Customer: {}", orderId, email);
             OrderDTO order = orderService.getCustomerOrderById(orderId, email);
             logger.info("getMyOrders completed successfully for Order: {}", orderId);
-            // Returning as a List containing the single object as strictly requested
-            return ResponseEntity.ok(List.of(order));
+            return ResponseEntity.ok(Map.of("orders", List.of(order)));
         }
 
         if (page != null && size != null) {
@@ -79,19 +84,19 @@ public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request
         logger.info("Processing getMyOrders for Customer: {}", email);
         List<OrderDTO> orders = orderService.getCustomerOrders(email);
         logger.info("getMyOrders completed successfully for Customer: {}", email);
-        return ResponseEntity.ok(orders);
+        return ResponseEntity.ok(Map.of("orders", orders));
     }
 
     @PutMapping("/{orderId}/cancel")
-    @Operation(summary = "Cancel an Order", description = "Stop a pending order from being processed if you have changed your mind")
+    @Operation(summary = "Cancel an Order", description = "Cancel a PENDING order. Only the order owner can cancel. Returns updated OrderDTO with CANCELLED status.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
-            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Order cancelled successfully", content = @Content(schema = @Schema(implementation = OrderDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Order cannot be cancelled (not in PENDING status)", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Order not found", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable String orderId, Authentication authentication) {
+    public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable String orderId, Authentication authentication) {
         String email = authentication.getName();
         logger.info("Processing cancelMyOrder for Order: {}", orderId);
         OrderDTO order = orderService.cancelOrder(orderId, email);

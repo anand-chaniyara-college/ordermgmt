@@ -1,6 +1,8 @@
 # API Reference — User-grouped
 
-This document lists all REST endpoints grouped by user role (Public / Customer / Admin) with accepted parameters and request payloads. Optional parameters/fields are marked as `(optional)`.
+This document lists all REST endpoints grouped by user role (Public / Customer / Admin) with accepted parameters, request payloads, and response structures. Optional parameters/fields are marked as `(optional)`.
+
+> **Response convention:** All responses are JSON objects. String messages are wrapped as `{"message": "..."}`. Lists are wrapped under a named key (e.g. `{"orders": [...]}`). Paginated responses use Spring's `Page` object format.
 
 ---
 
@@ -12,28 +14,29 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
     - `email` (string) — required, valid email
     - `password` (string) — required, min 6 chars
     - `roleName` (string) — required, must be `ADMIN` or `CUSTOMER`
-  - Response: `RegistrationResponseDTO` { `message` }
+  - Response (200): `RegistrationResponseDTO` `{ "message" }`
+  - Response (429 — rate limited): `{ "message": "..." }`
 
 - POST /api/auth/login
   - Description: Sign in and receive access + refresh tokens.
   - Request Body (JSON): `LoginRequestDTO`
     - `email` (string) — required, valid email
     - `password` (string) — required
-  - Response: `LoginResponseDTO` { `accessToken`, `refreshToken`, `tokenType`, `role`, `message` }
+  - Response: `LoginResponseDTO` `{ "accessToken", "refreshToken", "tokenType", "role", "message" }`
 
 - POST /api/auth/refresh
   - Description: Refresh access token using refresh token.
   - Request Header: `Authorization: Bearer <accessToken>` — required
   - Request Body (JSON): `RefreshTokenRequestDTO`
     - `refreshToken` (string) — required
-  - Response: `RefreshTokenResponseDTO` { `accessToken`, `refreshToken`, `tokenType`, `message` }
+  - Response: `RefreshTokenResponseDTO` `{ "accessToken", "refreshToken", "tokenType", "message" }`
 
 - POST /api/auth/logout
   - Description: Invalidate current session/token.
   - Request Header: `Authorization: Bearer <accessToken>` — required
   - Request Body (JSON): `RefreshTokenRequestDTO`
     - `refreshToken` (string) — required
-  - Response: plain text message
+  - Response: `{ "message": "Logged out successfully" }`
 
 ---
 
@@ -46,21 +49,31 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
     - `lastName` (string) — required
     - `contactNo` (string) — (optional) digits only, 10–20 chars
     - `address` (string) — (optional)
-    - `email` (string) — (optional)
+    - `email` (string) — read-only, returned in response
 
 - PUT /api/customer/profile
   - Description: Update the logged-in customer's profile.
   - Authorization: `Authorization: Bearer <accessToken>` — required
-  - Request Body (JSON): `CustomerProfileDTO` (same fields as above; validation applies)
-  - Response: plain text message
+  - Request Body (JSON): `CustomerProfileDTO`
+    - `firstName` (string) — required, alphabets only, max 100 chars
+    - `lastName` (string) — required, alphabets only, max 100 chars
+    - `contactNo` (string) — (optional) digits only, 10–20 chars
+    - `address` (string) — (optional) max 255 chars
+    - `email` — **not updatable**; if a different email is provided, the request is rejected with error `"Email cannot be updated"`
+  - Response: `{ "message": "Profile updated successfully" }`
 
 ---
 
-**Product Catalog (public / customer view)**
+**Product Catalog (requires authentication)**
 - GET /api/customer/products
-  - Description: List all available products.
-  - Authorization: (optional) — endpoint is read-only; use token if available
-  - Response Body: array of `ProductDTO`
+  - Description: List all available products. Supports optional pagination.
+  - Authorization: `Authorization: Bearer <accessToken>` — required
+  - Query Parameters:
+    - `page` (integer) — (optional) 0-indexed page number
+    - `size` (integer) — (optional) page size
+  - Response (without pagination): `{ "products": [ ProductDTO, ... ] }`
+  - Response (with pagination): Spring `Page<ProductDTO>` object `{ "content": [...], "totalElements", "totalPages", ... }`
+  - `ProductDTO` fields:
     - `itemId` (string)
     - `itemName` (string)
     - `unitPrice` (decimal)
@@ -72,25 +85,30 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
 - POST /api/customer/orders
   - Description: Place a new order.
   - Authorization: `Authorization: Bearer <accessToken>` — required
-  - Request Body (JSON): `OrderDTO`(Omited non used fileds)
-    - `orderId` (string) — (created by server)
-    - `customerId` (string) — (server uses authenticated user)
+  - Request Body (JSON): `OrderDTO` (client sends only `items`)
     - `items` (array of `OrderItemDTO`) — required, at least one
       - `itemId` (string) — required
       - `quantity` (integer) — required, positive
-  - Response: created `OrderDTO`
+  - Response (201 Created): `OrderDTO`
+    - `orderId` (string) — server-generated
+    - `status` (string) — e.g. `"PENDING"`
+    - `createdTimestamp` (datetime) — server-generated
+    - `updatedTimestamp` (datetime) — server-generated
+    - `items` (array of `OrderItemDTO`)
+      - `itemId`, `itemName`, `quantity`, `unitPrice`, `subTotal`
+    - `totalAmount` (decimal)
+    - Note: `customerId` is **not** included in the response
 
 - GET /api/customer/orders
   - Description: View customer's orders (merged behavior):
-    - If `orderId` query provided → returns a list containing the single order.
+    - If `orderId` query provided → returns `{ "orders": [ OrderDTO ] }`.
     - If `page` and `size` provided → returns paginated `Page<OrderDTO>`.
-    - Otherwise → returns full list of `OrderDTO`.
+    - Otherwise → returns `{ "orders": [ OrderDTO, ... ] }`.
   - Query Parameters:
     - `orderId` (string) — (optional)
     - `page` (integer) — (optional)
     - `size` (integer) — (optional)
   - Authorization: `Authorization: Bearer <accessToken>` — required
-  - Response: list or page of `OrderDTO` as described above
 
 - PUT /api/customer/orders/{orderId}/cancel
   - Description: Cancel a specific order belonging to the authenticated customer.
@@ -108,14 +126,17 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
     - `page` (integer) — (optional)
     - `size` (integer) — (optional)
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Response: list or `Page<OrderDTO>` as applicable
+  - Response (specific orderId): `{ "orders": [ OrderDTO ] }`
+  - Response (paginated): `Page<OrderDTO>`
+  - Response (full list): `{ "orders": [ OrderDTO, ... ] }`
 
 - PUT /api/admin/orders/status
   - Description: Bulk update status for multiple orders. Each update is independent.
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Request Body (JSON): array of `BulkOrderStatusUpdateDTO`
-    - `orderId` (string) — required
-    - `newStatus` (string) — required
+  - Request Body (JSON): `BulkOrderStatusUpdateWrapperDTO`
+    - `orders` (array of `BulkOrderStatusUpdateDTO`) — required
+      - `orderId` (string) — required
+      - `newStatus` (string) — required
   - Response Body: `BulkOrderUpdateResultDTO`
     - `successes` (array of `OrderDTO`)
     - `failures` (array of `BulkOrderFailureDTO`)
@@ -132,7 +153,10 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
     - `page` (integer) — (optional)
     - `size` (integer) — (optional)
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Response: `AdminPricingDTO` or list/page
+  - Response (specific itemId): `AdminPricingDTO`
+  - Response (paginated): `Page<AdminPricingDTO>`
+  - Response (full list): `{ "prices": [ AdminPricingDTO, ... ] }`
+  - `AdminPricingDTO` fields:
     - `itemId` (string) — required
     - `unitPrice` (decimal) — required, non-negative
     - `effectiveFrom` (datetime string `yyyy-MM-dd HH:mm:ss`) — (optional)
@@ -140,14 +164,16 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
 - POST /api/admin/prices
   - Description: Create price records in bulk.
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Request Body: array of `AdminPricingDTO` (see fields above)
-  - Response: plain text message (201 Created)
+  - Request Body (JSON): `AdminPricingWrapperDTO`
+    - `price` (array of `AdminPricingDTO`) — required
+  - Response (201 Created): `{ "message": "..." }`
 
 - PUT /api/admin/prices
   - Description: Update prices in bulk.
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Request Body: array of `AdminPricingDTO`
-  - Response: plain text message
+  - Request Body (JSON): `AdminPricingWrapperDTO`
+    - `price` (array of `AdminPricingDTO`) — required
+  - Response: `{ "message": "..." }`
 
 ---
 
@@ -156,7 +182,7 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
   - Description: Get inventory items. Behavior:
     - `itemId` → returns single `InventoryItemDTO`.
     - `page` & `size` → returns paginated `Page<InventoryItemDTO>`.
-    - otherwise → returns full list.
+    - otherwise → returns `{ "inventory": [ InventoryItemDTO, ... ] }`.
   - Query Parameters:
     - `itemId` (string) — (optional)
     - `page` (integer) — (optional)
@@ -171,22 +197,25 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
 - POST /api/admin/inventory
   - Description: Add multiple inventory items in bulk.
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Request Body: array of `InventoryItemDTO` (fields above)
-  - Response: list of created item IDs (201 Created)
+  - Request Body (JSON): `InventoryItemWrapperDTO`
+    - `inventory` (array of `InventoryItemDTO`) — required
+  - Response (201 Created): `{ "items": [ ... ] }`
 
 - POST /api/admin/inventory/addstock
   - Description: Add stock amounts to existing inventory items.
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Request Body: array of `AddStockRequestDTO`
-    - `itemId` (string) — required
-    - `addStock` (integer) — required, > 0
-  - Response: list of results
+  - Request Body (JSON): `AddStockWrapperDTO`
+    - `addstock` (array of `AddStockRequestDTO`) — required
+      - `itemId` (string) — required
+      - `addStock` (integer) — required, > 0
+  - Response: `{ "items": [ ... ] }`
 
 - PUT /api/admin/inventory
   - Description: Update multiple inventory items in bulk.
   - Authorization: `Authorization: Bearer <accessToken>` — required (ADMIN)
-  - Request Body: array of `InventoryItemDTO`
-  - Response: list of results
+  - Request Body (JSON): `InventoryItemWrapperDTO`
+    - `inventory` (array of `InventoryItemDTO`) — required
+  - Response: `{ "items": [ ... ] }`
 
 - DELETE /api/admin/inventory/{ids}
   - Description: Delete multiple inventory items by comma-separated IDs.
@@ -214,22 +243,13 @@ This document lists all REST endpoints grouped by user role (Public / Customer /
   - Request Body: `MonthlyReportRequestDTO`
     - `month` (string) — required
     - `year` (integer) — required
-  - Response: plain text message
-
----
-
-If you want, I can also:
-- add example JSON payloads for each request,
-- generate a Postman collection, or
-- produce an OpenAPI spec for automatic docs.
-
-File: [docs/API_BY_USER.md](docs/API_BY_USER.md)
+  - Response: `{ "message": "..." }`
 
 ---
 
 ## Example JSON payloads
 
-Below are compact, practical examples you can use directly when calling the API. These examples are intentionally minimal (only required fields) unless noted.
+Below are compact, practical examples you can use directly when calling the API.
 
 - Register (POST /api/auth/register)
 ```json
@@ -286,33 +306,50 @@ Request header: `Authorization: Bearer <accessToken>`
 
 - Admin: Bulk update order statuses (PUT /api/admin/orders/status)
 ```json
-[
-  { "orderId": "ORD-1001", "newStatus": "SHIPPED" },
-  { "orderId": "ORD-1002", "newStatus": "CANCELLED" }
-]
+{
+  "orders": [
+    { "orderId": "ORD-1001", "newStatus": "SHIPPED" },
+    { "orderId": "ORD-1002", "newStatus": "CANCELLED" }
+  ]
+}
 ```
 
 - Admin: Create/update prices (POST/PUT /api/admin/prices)
 ```json
-[
-  { "itemId": "SKU-1234", "unitPrice": 19.99 },
-  { "itemId": "SKU-5678", "unitPrice": 9.5 }
-]
+{
+  "price": [
+    { "itemId": "SKU-1234", "unitPrice": 19.99 },
+    { "itemId": "SKU-5678", "unitPrice": 9.5 }
+  ]
+}
 ```
 
 - Admin: Add inventory items (POST /api/admin/inventory)
 ```json
-[
-  { "itemId": "SKU-1234", "itemName": "Widget A", "availableStock": 100 }
-]
+{
+  "inventory": [
+    { "itemId": "SKU-1234", "itemName": "Widget A", "availableStock": 100 }
+  ]
+}
 ```
 
 - Admin: Add stock (POST /api/admin/inventory/addstock)
 ```json
-[
-  { "itemId": "SKU-1234", "addStock": 50 },
-  { "itemId": "SKU-5678", "addStock": 20 }
-]
+{
+  "addstock": [
+    { "itemId": "SKU-1234", "addStock": 50 },
+    { "itemId": "SKU-5678", "addStock": 20 }
+  ]
+}
+```
+
+- Admin: Update inventory (PUT /api/admin/inventory)
+```json
+{
+  "inventory": [
+    { "itemId": "SKU-1234", "itemName": "Widget A Updated", "availableStock": 150 }
+  ]
+}
 ```
 
 - Analytics: Request monthly report (POST /api/admin/analytics/sendreportemail)
@@ -322,7 +359,3 @@ Request header: `Authorization: Bearer <accessToken>`
   "year": 2026
 }
 ```
-
----
-
-File: [docs/API_BY_USER.md](docs/API_BY_USER.md)

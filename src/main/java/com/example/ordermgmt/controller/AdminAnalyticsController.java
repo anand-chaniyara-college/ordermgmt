@@ -21,6 +21,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/analytics")
@@ -35,13 +36,13 @@ public class AdminAnalyticsController {
     @GetMapping("/monthlyreport")
     @Operation(summary = "View Monthly Sales Report", description = "Get a detailed breakdown of sales, quantities, and totals for a specific month and year")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
-            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Report retrieved successfully", content = @Content(schema = @Schema(implementation = MonthlySalesLogDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid month or year parameter", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
+    public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
             @RequestParam @NotBlank(message = "Month is required") String month,
             @RequestParam @Min(value = 2000, message = "Year must be 2000 or later") Integer year) {
 
@@ -52,15 +53,15 @@ public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
     }
 
     @PostMapping("/sendreportemail")
-    @Operation(summary = "Email Sales Report", description = "Generate the monthly sales report and send it directly to the admin's email address")
+    @Operation(summary = "Email Sales Report", description = "Generate the monthly sales report and send it directly to the admin's email address. Response: {\"message\": \"...\"}")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
-            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "200", description = "Email request submitted — returns {\"message\": \"...\"}", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid month or year", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
-            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden — requires ADMIN role", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-public ResponseEntity<String> sendReportEmail(
+    public ResponseEntity<?> sendReportEmail(
             @RequestBody @Valid MonthlyReportRequestDTO request,
             Principal principal) {
 
@@ -68,6 +69,6 @@ public ResponseEntity<String> sendReportEmail(
         logger.info("Processing sendReportEmail for Admin: {}", adminEmail);
         adminAnalyticsService.sendMonthlyReportEmail(request.getMonth(), request.getYear(), adminEmail);
         logger.info("sendReportEmail completed successfully for Admin: {}", adminEmail);
-        return ResponseEntity.ok("Report email request submitted for " + adminEmail);
+        return ResponseEntity.ok(Map.of("message", "Report email request submitted for " + adminEmail));
     }
 }

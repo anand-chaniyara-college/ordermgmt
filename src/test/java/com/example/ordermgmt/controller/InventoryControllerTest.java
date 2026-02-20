@@ -42,7 +42,7 @@ public class InventoryControllerTest {
                 doThrow(new InvalidOperationException("Item Name is required"))
                                 .when(inventoryService).addInventoryItems(any());
 
-                String jsonPayload = "[{\"itemId\":\"ITEM005\",\"availableStock\":50}]";
+                String jsonPayload = "{\"inventory\":[{\"itemId\":\"ITEM005\",\"availableStock\":50}]}";
 
                 mockMvc.perform(post("/api/admin/inventory")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -62,7 +62,7 @@ public class InventoryControllerTest {
                 doThrow(new ConstraintViolationException("Validation failed", java.util.Collections.emptySet()))
                                 .when(inventoryService).addInventoryItems(any());
 
-                String jsonPayload = "[{\"itemId\":\"ITEM005\",\"availableStock\":50}]";
+                String jsonPayload = "{\"inventory\":[{\"itemId\":\"ITEM005\",\"availableStock\":50}]}";
 
                 // With handler, this should be 400
                 mockMvc.perform(post("/api/admin/inventory")
