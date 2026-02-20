@@ -1,6 +1,11 @@
 package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.BulkOrderUpdateResultDTO;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.dto.OrderStatusUpdateDTO;
 import com.example.ordermgmt.service.OrderService;
@@ -34,7 +39,14 @@ public class AdminOrderController {
 
     @GetMapping
     @Operation(summary = "View Orders", description = "Get orders. Returns specific order if orderId provided, paginated result if page/size provided, or full list otherwise. Always returns a list format as requested.")
-    public ResponseEntity<?> getAllOrders(
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
+public ResponseEntity<?> getAllOrders(
             @Parameter(description = "Specific Order ID to retrieve") @RequestParam(required = false) String orderId,
             @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
             @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
@@ -63,7 +75,14 @@ public class AdminOrderController {
 
     @PutMapping("/status")
     @Operation(summary = "Bulk Update Order Status", description = "Update the status of multiple orders at once. Each order is processed independently — one failure won't affect others.")
-    public ResponseEntity<BulkOrderUpdateResultDTO> updateOrderStatusBulk(
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
+public ResponseEntity<BulkOrderUpdateResultDTO> updateOrderStatusBulk(
             @Valid @RequestBody List<BulkOrderStatusUpdateDTO> updates) {
         logger.info("Processing updateOrderStatusBulk for {} orders", updates.size());
         BulkOrderUpdateResultDTO result = orderService.updateOrdersStatus(updates);

@@ -16,6 +16,11 @@ import com.example.ordermgmt.service.RateLimitingService;
 import jakarta.servlet.http.HttpServletRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -37,6 +42,12 @@ public class AuthController {
 
     @PostMapping("/register")
     @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "User registered successfully", content = @Content(schema = @Schema(implementation = RegistrationResponseDTO.class))),
+            @ApiResponse(responseCode = "400", description = "Invalid input or email already exists", content = @Content),
+            @ApiResponse(responseCode = "429", description = "Too many registration attempts", content = @Content)
+    })
+    @SecurityRequirements() // No auth required
     public ResponseEntity<?> register(@Valid @RequestBody RegistrationRequestDTO request,
             HttpServletRequest servletRequest) {
         String clientIp = getClientIp(servletRequest);
@@ -55,6 +66,11 @@ public class AuthController {
 
     @PostMapping("/login")
     @Operation(summary = "Sign In", description = "Log into your account using your email and password to get an access token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Login successful", content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))),
+            @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)
+    })
+    @SecurityRequirements() // No auth required
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
         logger.info("Processing login for User: {}", request.getEmail());
         LoginResponseDTO response = authService.loginUser(request);
@@ -64,6 +80,10 @@ public class AuthController {
 
     @PostMapping("/refresh")
     @Operation(summary = "Refresh Security Token", description = "Extend your session by generating a new access token using your refresh token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Token refreshed successfully", content = @Content(schema = @Schema(implementation = RefreshTokenResponseDTO.class))),
+            @ApiResponse(responseCode = "401", description = "Invalid refresh token or unauthorized", content = @Content)
+    })
     public ResponseEntity<RefreshTokenResponseDTO> refreshToken(@Valid @RequestBody RefreshTokenRequestDTO request,
             @RequestHeader("Authorization") String authHeader) {
         logger.info("Processing refreshToken for User");
@@ -75,6 +95,10 @@ public class AuthController {
 
     @PostMapping("/logout")
     @Operation(summary = "Sign Out", description = "End your current session and invalidate your security token")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Logged out successfully", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized", content = @Content)
+    })
     public ResponseEntity<String> logout(@Valid @RequestBody RefreshTokenRequestDTO request,
             @RequestHeader("Authorization") String authHeader) {
         logger.info("Processing logout for User");

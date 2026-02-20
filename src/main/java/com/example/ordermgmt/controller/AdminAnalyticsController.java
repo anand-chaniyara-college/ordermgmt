@@ -1,6 +1,11 @@
 package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
 import com.example.ordermgmt.service.AdminAnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -29,7 +34,14 @@ public class AdminAnalyticsController {
 
     @GetMapping("/monthlyreport")
     @Operation(summary = "View Monthly Sales Report", description = "Get a detailed breakdown of sales, quantities, and totals for a specific month and year")
-    public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
+public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
             @RequestParam @NotBlank(message = "Month is required") String month,
             @RequestParam @Min(value = 2000, message = "Year must be 2000 or later") Integer year) {
 
@@ -41,7 +53,14 @@ public class AdminAnalyticsController {
 
     @PostMapping("/sendreportemail")
     @Operation(summary = "Email Sales Report", description = "Generate the monthly sales report and send it directly to the admin's email address")
-    public ResponseEntity<String> sendReportEmail(
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
+public ResponseEntity<String> sendReportEmail(
             @RequestBody @Valid MonthlyReportRequestDTO request,
             Principal principal) {
 

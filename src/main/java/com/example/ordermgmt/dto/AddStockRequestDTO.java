@@ -1,5 +1,8 @@
 package com.example.ordermgmt.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -10,6 +13,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "Add stock request dto")
 public class AddStockRequestDTO {
 
     @NotBlank(message = "Item ID is required")

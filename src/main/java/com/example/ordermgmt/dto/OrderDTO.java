@@ -1,5 +1,7 @@
 package com.example.ordermgmt.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,16 +15,27 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "Order dto")
 public class OrderDTO {
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String orderId;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String customerId;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String status;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private LocalDateTime createdTimestamp;
+
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private LocalDateTime updatedTimestamp;
 
     @Valid
     @NotEmpty(message = "Order must contain at least one item")
     private List<OrderItemDTO> items;
 
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private BigDecimal totalAmount;
 }

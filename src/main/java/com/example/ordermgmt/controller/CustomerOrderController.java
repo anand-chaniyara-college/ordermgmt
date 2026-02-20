@@ -1,6 +1,11 @@
 package com.example.ordermgmt.controller;
 
 import com.example.ordermgmt.dto.OrderDTO;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import com.example.ordermgmt.service.OrderService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,7 +35,14 @@ public class CustomerOrderController {
 
     @PostMapping
     @Operation(summary = "Place a New Order", description = "Create a new shopping order by providing the items and shipping information")
-    public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request, Authentication authentication) {
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
+public ResponseEntity<OrderDTO> createOrder(@Valid @RequestBody OrderDTO request, Authentication authentication) {
         String email = authentication.getName();
         logger.info("Processing createOrder for Customer: {}", email);
         OrderDTO order = orderService.createOrder(request, email);
@@ -72,7 +84,14 @@ public class CustomerOrderController {
 
     @PutMapping("/{orderId}/cancel")
     @Operation(summary = "Cancel an Order", description = "Stop a pending order from being processed if you have changed your mind")
-    public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable String orderId, Authentication authentication) {
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Successful operation", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid request format or parameters", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Forbidden access", content = @Content),
+            @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
+    })
+public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable String orderId, Authentication authentication) {
         String email = authentication.getName();
         logger.info("Processing cancelMyOrder for Order: {}", orderId);
         OrderDTO order = orderService.cancelOrder(orderId, email);
