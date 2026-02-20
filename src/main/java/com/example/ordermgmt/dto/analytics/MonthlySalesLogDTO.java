@@ -1,5 +1,8 @@
 package com.example.ordermgmt.dto.analytics;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,6 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
+@Schema(description = "Monthly sales log dto")
 public class MonthlySalesLogDTO {
     private Long totalSoldItems;
     private BigDecimal totalRevenue;

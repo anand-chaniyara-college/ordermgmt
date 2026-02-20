@@ -41,7 +41,6 @@ public class PricingHistory {
     @Column(name = "newprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal newPrice;
 
-    @CreatedDate
     @Column(name = "createdtimestamp", nullable = false, updatable = false)
     private LocalDateTime createdTimestamp;
 

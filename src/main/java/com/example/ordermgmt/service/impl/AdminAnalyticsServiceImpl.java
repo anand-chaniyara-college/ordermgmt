@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Month;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -23,14 +24,15 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
     private final EmailService emailService;
 
     @Override
+    @Transactional(readOnly = true)
     public MonthlySalesLogDTO getMonthlyReport(String month, int year) {
-        logger.info("Processing getMonthlyReport for month: {}, year: {}", month, year);
+        logger.info("Processing getMonthlyReport for: {}-{}", month, year);
 
         int monthInt = validateAndGetMonthIndex(month);
 
         MonthlySalesLogDTO report = orderItemRepository.getMonthlyReport(monthInt, year);
         if (report == null || report.getTotalSoldItems() == null || report.getTotalSoldItems() == 0) {
-            logger.warn("Skipping getMonthlyReport for month: {}, year: {} - No records found", month, year);
+            logger.warn("Skipping getMonthlyReport for: {}-{} - No records found", month, year);
             throw new com.example.ordermgmt.exception.ResourceNotFoundException(
                     "No records found for " + month + " " + year);
         }
@@ -38,21 +40,20 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         List<ItemSalesReportDTO> items = orderItemRepository.getMonthlyItemWiseReport(monthInt, year);
         report.setItems(items);
 
-        logger.info("getMonthlyReport completed successfully for month: {}, year: {}", month, year);
+        logger.info("getMonthlyReport completed successfully for: {}-{}", month, year);
         return report;
     }
 
     @Override
     public void sendMonthlyReportEmail(String month, int year, String recipientEmail) {
-        logger.info("Processing sendMonthlyReportEmail for recipient: {}, month: {}, year: {}", recipientEmail, month,
-                year);
+        logger.info("Processing sendMonthlyReportEmail for Admin: {}", recipientEmail);
         validateAndGetMonthIndex(month);
 
         MonthlySalesLogDTO report = getMonthlyReport(month, year);
         String emailBody = formatSalesEmailBody(report, month, year);
 
         emailService.sendEmail(recipientEmail, "Monthly Sales Report: " + month + " " + year, emailBody);
-        logger.info("sendMonthlyReportEmail completed successfully for recipient: {}", recipientEmail);
+        logger.info("sendMonthlyReportEmail completed successfully for Admin: {}", recipientEmail);
     }
 
     private int validateAndGetMonthIndex(String month) {

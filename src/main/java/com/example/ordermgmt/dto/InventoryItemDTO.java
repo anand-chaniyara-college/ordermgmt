@@ -1,5 +1,8 @@
 package com.example.ordermgmt.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
+
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -12,23 +15,23 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "Inventory item dto")
 public class InventoryItemDTO {
 
     @NotBlank(message = "Item ID is required")
     @Size(min = 2, max = 50, message = "Item ID must be between 2 and 50 characters")
-    @Pattern(regexp = "^[a-zA-Z0-9]+$", message = "Item ID must contain only alphanumeric characters")
+    @Pattern(regexp = "^[a-zA-Z0-9-_]+$", message = "Item ID must contain only alphanumeric characters, hyphens, or underscores")
     private String itemId;
 
-    @NotBlank(message = "Item Name is required")
-    @Size(min = 2, max = 100, message = "Item Name must be between 2 and 100 characters")
-    @Pattern(regexp = "^[a-zA-Z0-9 ]+$", message = "Item Name must contain only alphanumeric characters and spaces")
+    // Item Name is optional for updates, but required for creation (validated in
+    // service)
+    @Pattern(regexp = "^[a-zA-Z0-9 -_.]+$", message = "Item Name must contain only alphanumeric characters, spaces, hyphens, underscores, or dots")
     private String itemName;
 
     @NotNull(message = "Available Stock cannot be null")
     @Min(value = 0, message = "Available Stock must be zero or positive")
     private Integer availableStock;
 
-    @NotNull(message = "Reserved Stock cannot be null")
     @Min(value = 0, message = "Reserved Stock must be zero or positive")
     private Integer reservedStock;
 }

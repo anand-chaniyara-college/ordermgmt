@@ -1,5 +1,11 @@
 package com.example.ordermgmt.service.impl;
 
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.Collections;
+import java.util.Optional;
 import com.example.ordermgmt.dto.LoginRequestDTO;
 import com.example.ordermgmt.dto.LoginResponseDTO;
 import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
@@ -34,6 +40,7 @@ import java.util.UUID;
 public class AuthServiceImpl implements AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
+    private static final long REFRESH_TOKEN_VALIDITY_MS = 1000L * 60 * 60 * 24 * 7; // 7 days
 
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
@@ -62,14 +69,18 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void registerUser(RegistrationRequestDTO request) {
-        logger.info("Processing registration for email: {}", request.getEmail());
+        logger.info("Processing registerUser for User: {}", request.getEmail());
 
         if (appUserRepository.findByEmail(request.getEmail()).isPresent()) {
+            logger.warn("Skipping registerUser for User: {} - Email already exists", request.getEmail());
             throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
         }
 
         UserRole role = userRoleRepository.findByRoleName(request.getRoleName())
-                .orElseThrow(() -> new RoleNotFoundException("Role not found: " + request.getRoleName()));
+                .orElseThrow(() -> {
+                    logger.error("registerUser failed for User: {} - Role not found", request.getEmail());
+                    return new RoleNotFoundException("Role not found: " + request.getRoleName());
+                });
 
         AppUser newUser = new AppUser();
         newUser.setUserId(UUID.randomUUID().toString());
@@ -78,13 +89,22 @@ public class AuthServiceImpl implements AuthService {
         newUser.setRole(role);
         newUser.setIsActive(true);
 
-        appUserRepository.save(newUser);
+        // Set security context for auditing
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                request.getEmail(), null, Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
-            createEmptyCustomerProfile(newUser);
+        try {
+            appUserRepository.save(newUser);
+
+            if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
+                createEmptyCustomerProfile(newUser);
+            }
+        } finally {
+            SecurityContextHolder.clearContext();
         }
 
-        logger.info("User registered successfully: {}", request.getEmail());
+        logger.info("registerUser completed successfully for User: {}", request.getEmail());
     }
 
     private void createEmptyCustomerProfile(AppUser user) {
@@ -98,23 +118,40 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginResponseDTO loginUser(LoginRequestDTO request) {
-        logger.info("Processing login for email: {}", request.getEmail());
+        logger.info("Processing loginUser for User: {}", request.getEmail());
 
         AppUser user = appUserRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new InvalidCredentialsException("Invalid credentials"));
+                .orElseThrow(() -> {
+                    logger.warn("Skipping loginUser for User: {} - Invalid credentials", request.getEmail());
+                    return new InvalidCredentialsException("Invalid credentials");
+                });
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            logger.warn("Skipping loginUser for User: {} - Invalid credentials", request.getEmail());
             throw new InvalidCredentialsException("Invalid credentials");
         }
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
+            logger.warn("Skipping loginUser for User: {} - Account inactive", request.getEmail());
             throw new AccountInactiveException("User is inactive");
         }
 
         String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
-        RefreshToken refreshToken = createRefreshToken(user);
 
-        logger.info("Login successful for user: {}", request.getEmail());
+        // Set security context for auditing
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                user.getEmail(), null,
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        RefreshToken refreshToken;
+        try {
+            refreshToken = createRefreshToken(user);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        logger.info("loginUser completed successfully for User: {}", request.getEmail());
 
         return new LoginResponseDTO(accessToken, refreshToken.getToken(), user.getRole().getRoleName(),
                 "Login successful");
@@ -123,10 +160,13 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request, String accessToken) {
-        logger.info("Processing refresh token request");
+        logger.info("Processing refreshToken for User");
 
         RefreshToken token = refreshTokenRepository.findByToken(request.getRefreshToken())
-                .orElseThrow(() -> new InvalidTokenException("Refresh token not found"));
+                .orElseThrow(() -> {
+                    logger.error("refreshToken failed - Token not found");
+                    return new InvalidTokenException("Refresh token not found");
+                });
 
         validateRefreshToken(token);
 
@@ -137,13 +177,26 @@ public class AuthServiceImpl implements AuthService {
 
         AppUser user = token.getAppUser();
         if (!Boolean.TRUE.equals(user.getIsActive())) {
+            logger.warn("Skipping refreshToken for User: {} - Account inactive", user.getEmail());
             throw new AccountInactiveException("User is inactive");
         }
 
         String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
-        RefreshToken newRefreshToken = createRefreshToken(user);
 
-        logger.info("Access token refreshed and rotated successfully for user: {}", user.getEmail());
+        // Set security context for auditing
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                user.getEmail(), null,
+                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        RefreshToken newRefreshToken;
+        try {
+            newRefreshToken = createRefreshToken(user);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        logger.info("refreshToken completed successfully for User: {}", user.getEmail());
         return new RefreshTokenResponseDTO(newAccessToken, newRefreshToken.getToken(), "Bearer",
                 "Token refreshed successfully");
     }
@@ -156,10 +209,12 @@ public class AuthServiceImpl implements AuthService {
 
     private void validateRefreshToken(RefreshToken token) {
         if (token.getExpiryDate().isBefore(Instant.now())) {
+            logger.warn("Skipping refreshToken - Token expired");
             throw new InvalidTokenException("Refresh token expired");
         }
 
         if (Boolean.TRUE.equals(token.getRevoked())) {
+            logger.warn("Skipping refreshToken - Token revoked");
             throw new InvalidTokenException("Refresh token revoked");
         }
     }
@@ -168,7 +223,7 @@ public class AuthServiceImpl implements AuthService {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setTokenId(UUID.randomUUID().toString());
         refreshToken.setAppUser(user);
-        refreshToken.setExpiryDate(Instant.now().plusMillis(1000L * 60 * 60 * 24 * 7));
+        refreshToken.setExpiryDate(Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY_MS));
         refreshToken.setToken(UUID.randomUUID().toString());
         refreshToken.setRevoked(false);
 
@@ -178,7 +233,7 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void logoutUser(RefreshTokenRequestDTO request, String accessToken) {
-        logger.info("Processing logout request");
+        logger.info("Processing logoutUser for User");
 
         blacklistAccessToken(accessToken);
 
@@ -187,5 +242,7 @@ public class AuthServiceImpl implements AuthService {
             refreshTokenRepository.save(token);
             logger.info("Refresh token revoked");
         });
+
+        logger.info("logoutUser completed successfully");
     }
 }

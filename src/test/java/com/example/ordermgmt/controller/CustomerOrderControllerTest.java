@@ -52,7 +52,10 @@ class CustomerOrderControllerTest {
     void createOrder_Success() throws Exception {
         OrderDTO orderDTO = new OrderDTO();
         orderDTO.setOrderId("order-123");
-        // Assume minimal valid order DTO
+        com.example.ordermgmt.dto.OrderItemDTO item = new com.example.ordermgmt.dto.OrderItemDTO();
+        item.setItemId("item-1");
+        item.setQuantity(1);
+        orderDTO.setItems(Collections.singletonList(item));
 
         when(orderService.createOrder(any(OrderDTO.class), eq("test@example.com"))).thenReturn(orderDTO);
 
@@ -60,7 +63,7 @@ class CustomerOrderControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(orderDTO))
                 .principal(mockPrincipal))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.orderId").value("order-123"));
     }
 
@@ -75,6 +78,6 @@ class CustomerOrderControllerTest {
         mockMvc.perform(get("/api/customer/orders")
                 .principal(mockPrincipal))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].orderId").value("order-123"));
+                .andExpect(jsonPath("$.orders[0].orderId").value("order-123"));
     }
 }

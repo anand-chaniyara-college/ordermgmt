@@ -30,11 +30,11 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public CustomerProfileDTO getCustomerProfile(String email) {
-        logger.info("Processing getCustomerProfile for customer: {}", email);
+        logger.info("Processing getCustomerProfile for Customer: {}", email);
 
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    logger.error("getCustomerProfile failed for customer: {}: User not found", email);
+                    logger.error("getCustomerProfile failed for Customer: {} - User not found", email);
                     return new ResourceNotFoundException("User not found with email: " + email);
                 });
 
@@ -42,7 +42,7 @@ public class CustomerServiceImpl implements CustomerService {
                 .map(this::convertToDTO)
                 .orElseGet(() -> {
                     logger.warn(
-                            "Processing getCustomerProfile for customer: {} - Customer record not found, returning default",
+                            "Processing getCustomerProfile for Customer: {} - Customer record not found, returning default",
                             email);
 
                     CustomerProfileDTO dto = new CustomerProfileDTO();
@@ -54,11 +54,16 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public String updateCustomerProfile(String email, CustomerProfileDTO profileDTO) {
-        logger.info("Processing updateCustomerProfile for customer: {}", email);
+        logger.info("Processing updateCustomerProfile for Customer: {}", email);
+
+        if (profileDTO.getEmail() != null && !profileDTO.getEmail().equalsIgnoreCase(email)) {
+            logger.warn("updateCustomerProfile rejected for Customer: {} - Email modification not allowed", email);
+            throw new com.example.ordermgmt.exception.InvalidOperationException("Email cannot be updated");
+        }
 
         AppUser user = appUserRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    logger.error("updateCustomerProfile failed for customer: {}: User not found", email);
+                    logger.error("updateCustomerProfile failed for Customer: {} - User not found", email);
                     return new ResourceNotFoundException("User not found with email: " + email);
                 });
 
@@ -68,7 +73,7 @@ public class CustomerServiceImpl implements CustomerService {
         updateCustomerFields(customer, profileDTO);
         customerRepository.save(customer);
 
-        logger.info("updateCustomerProfile completed successfully for customer: {}", email);
+        logger.info("updateCustomerProfile completed successfully for Customer: {}", email);
         return "Profile updated successfully";
     }
 

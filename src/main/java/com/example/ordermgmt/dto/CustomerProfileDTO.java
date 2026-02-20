@@ -1,5 +1,8 @@
 package com.example.ordermgmt.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -11,6 +14,7 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Schema(description = "Customer profile dto")
 public class CustomerProfileDTO {
 
     @NotBlank(message = "First name is required")
@@ -30,6 +34,7 @@ public class CustomerProfileDTO {
     @Size(max = 255, message = "Address must not exceed 255 characters")
     private String address;
 
+    @Schema(description = "Email address (read-only, cannot be updated)")
     @Email(message = "Invalid email format")
     private String email;
 }

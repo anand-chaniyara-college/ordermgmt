@@ -8,12 +8,14 @@ import lombok.AllArgsConstructor;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.AssertTrue;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import jakarta.persistence.Version;
 
 @Getter
 @Setter
@@ -42,8 +44,12 @@ public class InventoryItem {
     @OneToOne(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
     private PricingCatalog pricingCatalog;
 
-    @OneToMany(mappedBy = "inventoryItem", cascade = CascadeType.ALL)
-    private java.util.List<PricingHistory> pricingHistoryLogs;
+    @OneToMany(mappedBy = "inventoryItem", cascade = CascadeType.PERSIST)
+    private List<PricingHistory> pricingHistoryLogs;
+
+    @Version
+    @Column(name = "version")
+    private Long version;
 
     @AssertTrue(message = "Available stock must be greater than or equal to reserved stock")
     public boolean isStockConsistent() {

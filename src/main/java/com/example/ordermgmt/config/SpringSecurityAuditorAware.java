@@ -10,11 +10,16 @@ import java.util.Optional;
 @Component("auditorProvider")
 public class SpringSecurityAuditorAware implements AuditorAware<String> {
 
+    private static final String SYSTEM_USER = "SYSTEM";
+    private static final String ANONYMOUS_USER = "anonymousUser";
+
     @Override
     public Optional<String> getCurrentAuditor() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return Optional.of("SYSTEM");
+        if (authentication == null ||
+                !authentication.isAuthenticated() ||
+                ANONYMOUS_USER.equals(authentication.getPrincipal())) {
+            return Optional.of(SYSTEM_USER);
         }
         return Optional.ofNullable(authentication.getName());
     }
