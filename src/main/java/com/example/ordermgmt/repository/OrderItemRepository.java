@@ -20,7 +20,8 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.
                         "FROM OrderItem oi " +
                         "JOIN oi.order o " +
                         "WHERE FUNCTION('date_part', 'year', o.createdTimestamp) = :year " +
-                        "AND FUNCTION('date_part', 'month', o.createdTimestamp) = :month")
+                        "AND FUNCTION('date_part', 'month', o.createdTimestamp) = :month " +
+                        "AND o.status.statusName = 'DELIVERED'")
         com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO getMonthlyReport(
                         @Param("month") int month,
                         @Param("year") int year);
@@ -35,6 +36,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.
                         "JOIN oi.order o " +
                         "WHERE FUNCTION('date_part', 'year', o.createdTimestamp) = :year " +
                         "AND FUNCTION('date_part', 'month', o.createdTimestamp) = :month " +
+                        "AND o.status.statusName = 'DELIVERED' " +
                         "GROUP BY oi.inventoryItem.itemId, oi.inventoryItem.itemName")
         java.util.List<com.example.ordermgmt.dto.analytics.ItemSalesReportDTO> getMonthlyItemWiseReport(
                         @Param("month") int month,
