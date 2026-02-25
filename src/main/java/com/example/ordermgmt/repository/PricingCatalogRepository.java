@@ -4,7 +4,9 @@ import com.example.ordermgmt.entity.PricingCatalog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
-public interface PricingCatalogRepository extends JpaRepository<PricingCatalog, String> {
+public interface PricingCatalogRepository extends JpaRepository<PricingCatalog, UUID> {
 
 }

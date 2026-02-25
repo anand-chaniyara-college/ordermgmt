@@ -22,6 +22,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -29,172 +30,172 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderInventoryManagerImpl {
 
-    private static final Logger logger = LoggerFactory.getLogger(OrderInventoryManagerImpl.class);
+        private static final Logger logger = LoggerFactory.getLogger(OrderInventoryManagerImpl.class);
 
-    private final InventoryItemRepository inventoryRepository;
-    private final OrderItemRepository orderItemRepository;
-    private final PricingHistoryRepository pricingHistoryRepository;
+        private final InventoryItemRepository inventoryRepository;
+        private final OrderItemRepository orderItemRepository;
+        private final PricingHistoryRepository pricingHistoryRepository;
 
-    /**
-     * Process order items with pessimistic locking and price-from-history.
-     * Items are sorted by itemId before lock acquisition to prevent deadlocks.
-     */
-    @Transactional
-    public List<OrderItemDTO> processAndSaveOrderItems(List<OrderItemDTO> items, Orders order) {
-        logger.info("Processing processAndSaveOrderItems for Order: {}", order.getOrderId());
-        // 1. Sort by itemId for deterministic lock order (deadlock prevention)
-        List<OrderItemDTO> sortedItems = items.stream()
-                .sorted(Comparator.comparing(OrderItemDTO::getItemId))
-                .collect(Collectors.toList());
+        /**
+         * Process order items with pessimistic locking and price-from-history.
+         * Items are sorted by itemId before lock acquisition to prevent deadlocks.
+         */
+        @Transactional
+        public List<OrderItemDTO> processAndSaveOrderItems(List<OrderItemDTO> items, Orders order) {
+                logger.info("Processing processAndSaveOrderItems for Order: {}", order.getOrderId());
+                // 1. Sort by itemId for deterministic lock order (deadlock prevention)
+                List<OrderItemDTO> sortedItems = items.stream()
+                                .sorted(Comparator.comparing(OrderItemDTO::getItemId))
+                                .collect(Collectors.toList());
 
-        // 2. Batch lock all inventory items at once (sorted by itemId in the query)
-        List<String> itemIds = sortedItems.stream()
-                .map(OrderItemDTO::getItemId)
-                .collect(Collectors.toList());
-        Map<String, InventoryItem> lockedInventory = inventoryRepository
-                .findAllByItemIdInForUpdate(itemIds).stream()
-                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
+                // 2. Batch lock all inventory items at once (sorted by itemId in the query)
+                List<UUID> itemIds = sortedItems.stream()
+                                .map(OrderItemDTO::getItemId)
+                                .collect(Collectors.toList());
+                Map<UUID, InventoryItem> lockedInventory = inventoryRepository
+                                .findAllByItemIdInForUpdate(itemIds).stream()
+                                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
 
-        // 3. Process each item against locked inventory
-        List<OrderItemDTO> result = sortedItems.stream().map(itemReq -> {
-            InventoryItem inventoryItem = lockedInventory.get(itemReq.getItemId());
-            if (inventoryItem == null) {
-                throw new InvalidOperationException("Item not found: " + itemReq.getItemId());
-            }
+                // 3. Process each item against locked inventory
+                List<OrderItemDTO> result = sortedItems.stream().map(itemReq -> {
+                        InventoryItem inventoryItem = lockedInventory.get(itemReq.getItemId());
+                        if (inventoryItem == null) {
+                                throw new InvalidOperationException("Item not found: " + itemReq.getItemId());
+                        }
 
-            // Validate stock availability
-            int effectiveAvailable = inventoryItem.getAvailableStock() - inventoryItem.getReservedStock();
-            if (effectiveAvailable < itemReq.getQuantity()) {
-                throw new InsufficientStockException("Insufficient stock for item: "
-                        + inventoryItem.getItemName() + " (ID: " + inventoryItem.getItemId()
-                        + "). Available: " + effectiveAvailable + ", Requested: " + itemReq.getQuantity());
-            }
+                        // Validate stock availability
+                        int effectiveAvailable = inventoryItem.getAvailableStock() - inventoryItem.getReservedStock();
+                        if (effectiveAvailable < itemReq.getQuantity()) {
+                                throw new InsufficientStockException("Insufficient stock for item: "
+                                                + inventoryItem.getItemName() + " (ID: " + inventoryItem.getItemId()
+                                                + "). Available: " + effectiveAvailable + ", Requested: "
+                                                + itemReq.getQuantity());
+                        }
 
-            // Get price from PricingHistory (immutable) — per commit 2a6f1a84d pattern
-            BigDecimal unitPrice = resolveUnitPrice(inventoryItem);
+                        BigDecimal unitPrice = resolveUnitPrice(inventoryItem);
 
-            // Create and save OrderItem
-            OrderItem orderItem = new OrderItem();
-            orderItem.setId(new OrderItem.OrderItemId(order.getOrderId(), inventoryItem.getItemId()));
-            orderItem.setOrder(order);
-            orderItem.setInventoryItem(inventoryItem);
-            orderItem.setQuantity(itemReq.getQuantity());
-            orderItem.setUnitPrice(unitPrice);
-            orderItemRepository.save(orderItem);
+                        // Create and save OrderItem
+                        OrderItem orderItem = new OrderItem();
+                        orderItem.setId(new OrderItem.OrderItemId(order.getOrderId(), inventoryItem.getItemId()));
+                        orderItem.setOrder(order);
+                        orderItem.setInventoryItem(inventoryItem);
+                        orderItem.setQuantity(itemReq.getQuantity());
+                        orderItem.setUnitPrice(unitPrice);
+                        orderItemRepository.save(orderItem);
 
-            return new OrderItemDTO(
-                    inventoryItem.getItemId(),
-                    inventoryItem.getItemName(),
-                    orderItem.getQuantity(),
-                    orderItem.getUnitPrice(),
-                    orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
-        }).collect(Collectors.toList());
+                        return new OrderItemDTO(
+                                        inventoryItem.getItemId(),
+                                        inventoryItem.getItemName(),
+                                        orderItem.getQuantity(),
+                                        orderItem.getUnitPrice(),
+                                        orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
+                }).collect(Collectors.toList());
 
-        logger.info("processAndSaveOrderItems completed successfully for Order: {}", order.getOrderId());
-        return result;
-    }
-
-    /**
-     * Handle inventory updates based on order status transitions.
-     * Uses pessimistic locking with deterministic lock order.
-     *
-     * State machine:
-     * PENDING → CONFIRMED: availableStock -= qty, reservedStock += qty
-     * CONFIRMED/PROCESSING → CANCELLED: availableStock += qty, reservedStock -= qty
-     * PENDING → CANCELLED: no change (nothing was reserved)
-     * PROCESSING → SHIPPED: no change
-     * SHIPPED → DELIVERED: reservedStock -= qty (final fulfillment)
-     */
-    @Transactional
-    public void handleInventoryUpdate(Orders order, OrderStatus currentStatus, OrderStatus nextStatus) {
-        logger.info("Processing handleInventoryUpdate for Order: {} ({} -> {})",
-                order.getOrderId(), currentStatus, nextStatus);
-
-        List<OrderItem> items = orderItemRepository.findByOrderOrderId(order.getOrderId());
-
-        if (items.isEmpty()) {
-            logger.warn("Skipping handleInventoryUpdate for Order: {} - no order items found", order.getOrderId());
-            return;
+                logger.info("processAndSaveOrderItems completed successfully for Order: {}", order.getOrderId());
+                return result;
         }
 
-        // Collect sorted itemIds for deterministic lock order
-        List<String> itemIds = items.stream()
-                .map(i -> i.getInventoryItem().getItemId())
-                .sorted()
-                .distinct()
-                .collect(Collectors.toList());
-        Map<String, InventoryItem> locked = inventoryRepository
-                .findAllByItemIdInForUpdate(itemIds).stream()
-                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
+        /**
+         * Handle inventory updates based on order status transitions.
+         * Uses pessimistic locking with deterministic lock order.
+         *
+         * State machine:
+         * PENDING → CONFIRMED: availableStock -= qty, reservedStock += qty
+         * CONFIRMED/PROCESSING → CANCELLED: availableStock += qty, reservedStock -= qty
+         * PENDING → CANCELLED: no change (nothing was reserved)
+         * PROCESSING → SHIPPED: no change
+         * SHIPPED → DELIVERED: reservedStock -= qty (final fulfillment)
+         */
+        @Transactional
+        public void handleInventoryUpdate(Orders order, OrderStatus currentStatus, OrderStatus nextStatus) {
+                logger.info("Processing handleInventoryUpdate for Order: {} ({} -> {})",
+                                order.getOrderId(), currentStatus, nextStatus);
 
-        if (nextStatus == OrderStatus.CONFIRMED && currentStatus == OrderStatus.PENDING) {
-            // Reserve stock: available --, reserved ++
-            for (OrderItem item : items) {
-                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
-                int effectiveAvailable = inv.getAvailableStock() - inv.getReservedStock();
-                if (effectiveAvailable < item.getQuantity()) {
-                    throw new InsufficientStockException(
-                            "Insufficient stock for item: " + inv.getItemName()
-                                    + " (ID: " + inv.getItemId() + ")");
+                List<OrderItem> items = orderItemRepository.findByOrderOrderId(order.getOrderId());
+
+                if (items.isEmpty()) {
+                        logger.warn("Skipping handleInventoryUpdate for Order: {} - no order items found",
+                                        order.getOrderId());
+                        return;
                 }
-                inv.setAvailableStock(inv.getAvailableStock() - item.getQuantity());
-                inv.setReservedStock(inv.getReservedStock() + item.getQuantity());
-                inventoryRepository.save(inv);
-                logger.debug("CONFIRMED: Item {} — available: {}, reserved: {}",
-                        inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
-            }
-        } else if (nextStatus == OrderStatus.CANCELLED
-                && (currentStatus == OrderStatus.CONFIRMED || currentStatus == OrderStatus.PROCESSING)) {
-            // Release reservation: available ++, reserved --
-            for (OrderItem item : items) {
-                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
-                inv.setAvailableStock(inv.getAvailableStock() + item.getQuantity());
-                inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
-                inventoryRepository.save(inv);
-                logger.debug("CANCELLED: Item {} — available: {}, reserved: {}",
-                        inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
-            }
-        } else if (nextStatus == OrderStatus.DELIVERED && currentStatus == OrderStatus.SHIPPED) {
-            // Final fulfillment: reserved --
-            for (OrderItem item : items) {
-                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
-                inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
-                inventoryRepository.save(inv);
-                logger.debug("DELIVERED: Item {} — reserved: {}",
-                        inv.getItemId(), inv.getReservedStock());
-            }
-        }
-        // PROCESSING → SHIPPED: no inventory change
-        // PENDING → CANCELLED: no inventory change (nothing was reserved)
-    }
 
-    /**
-     * Resolve unit price: prefer PricingHistory (immutable) over PricingCatalog
-     * (mutable).
-     * PricingHistory is the immutable audit trail as established in commit
-     * 2a6f1a84d.
-     */
-    private BigDecimal resolveUnitPrice(InventoryItem inventoryItem) {
-        // 1. Try PricingHistory first (immutable snapshot)
-        Optional<PricingHistory> latestHistory = pricingHistoryRepository
-                .findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(inventoryItem.getItemId());
+                // Collect sorted itemIds for deterministic lock order
+                List<UUID> itemIds = items.stream()
+                                .map(i -> i.getInventoryItem().getItemId())
+                                .sorted()
+                                .distinct()
+                                .collect(Collectors.toList());
+                Map<UUID, InventoryItem> locked = inventoryRepository
+                                .findAllByItemIdInForUpdate(itemIds).stream()
+                                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
 
-        if (latestHistory.isPresent()) {
-            logger.debug("Price for item {} resolved from PricingHistory: {}",
-                    inventoryItem.getItemId(), latestHistory.get().getNewPrice());
-            return latestHistory.get().getNewPrice();
-        }
-
-        // 2. Fallback to PricingCatalog (backward compatibility)
-        if (inventoryItem.getPricingCatalog() != null
-                && inventoryItem.getPricingCatalog().getUnitPrice() != null) {
-            logger.warn("Skipping PricingHistory for Item: {} - no history found, falling back to PricingCatalog: {}",
-                    inventoryItem.getItemId(), inventoryItem.getPricingCatalog().getUnitPrice());
-            return inventoryItem.getPricingCatalog().getUnitPrice();
+                if (nextStatus == OrderStatus.CONFIRMED && currentStatus == OrderStatus.PENDING) {
+                        // Reserve stock: available --, reserved ++
+                        for (OrderItem item : items) {
+                                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                                int effectiveAvailable = inv.getAvailableStock() - inv.getReservedStock();
+                                if (effectiveAvailable < item.getQuantity()) {
+                                        throw new InsufficientStockException(
+                                                        "Insufficient stock for item: " + inv.getItemName()
+                                                                        + " (ID: " + inv.getItemId() + ")");
+                                }
+                                inv.setAvailableStock(inv.getAvailableStock() - item.getQuantity());
+                                inv.setReservedStock(inv.getReservedStock() + item.getQuantity());
+                                inventoryRepository.save(inv);
+                                logger.debug("CONFIRMED: Item {} — available: {}, reserved: {}",
+                                                inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
+                        }
+                } else if (nextStatus == OrderStatus.CANCELLED
+                                && (currentStatus == OrderStatus.CONFIRMED
+                                                || currentStatus == OrderStatus.PROCESSING)) {
+                        // Release reservation: available ++, reserved --
+                        for (OrderItem item : items) {
+                                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                                inv.setAvailableStock(inv.getAvailableStock() + item.getQuantity());
+                                inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
+                                inventoryRepository.save(inv);
+                                logger.debug("CANCELLED: Item {} — available: {}, reserved: {}",
+                                                inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
+                        }
+                } else if (nextStatus == OrderStatus.DELIVERED && currentStatus == OrderStatus.SHIPPED) {
+                        // Final fulfillment: reserved --
+                        for (OrderItem item : items) {
+                                InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                                inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
+                                inventoryRepository.save(inv);
+                                logger.debug("DELIVERED: Item {} — reserved: {}",
+                                                inv.getItemId(), inv.getReservedStock());
+                        }
+                }
+                // PROCESSING → SHIPPED: no inventory change
+                // PENDING → CANCELLED: no inventory change (nothing was reserved)
         }
 
-        throw new InvalidOperationException(
-                "Price not found for item ID: " + inventoryItem.getItemId()
-                        + ". Ensure pricing is configured before accepting orders.");
-    }
+        /**
+         * Resolve unit price: prefer PricingHistory (immutable) over PricingCatalog
+         * (mutable).
+         */
+        private BigDecimal resolveUnitPrice(InventoryItem inventoryItem) {
+                // 1. Try PricingHistory first (immutable snapshot)
+                Optional<PricingHistory> latestHistory = pricingHistoryRepository
+                                .findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(inventoryItem.getItemId());
+
+                if (latestHistory.isPresent()) {
+                        logger.debug("Price for item {} resolved from PricingHistory: {}",
+                                        inventoryItem.getItemId(), latestHistory.get().getNewPrice());
+                        return latestHistory.get().getNewPrice();
+                }
+
+                // 2. Fallback to PricingCatalog (backward compatibility)
+                if (inventoryItem.getPricingCatalog() != null
+                                && inventoryItem.getPricingCatalog().getUnitPrice() != null) {
+                        logger.warn("Skipping PricingHistory for Item: {} - no history found, falling back to PricingCatalog: {}",
+                                        inventoryItem.getItemId(), inventoryItem.getPricingCatalog().getUnitPrice());
+                        return inventoryItem.getPricingCatalog().getUnitPrice();
+                }
+
+                throw new InvalidOperationException(
+                                "Price not found for item ID: " + inventoryItem.getItemId()
+                                                + ". Ensure pricing is configured before accepting orders.");
+        }
 }

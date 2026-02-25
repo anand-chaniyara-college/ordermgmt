@@ -14,7 +14,6 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
-import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +23,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/customer/orders")
@@ -60,13 +60,13 @@ public class CustomerOrderController {
     })
     public ResponseEntity<?> getMyOrders(
             Authentication authentication,
-            @Parameter(description = "Specific Order ID to retrieve") @RequestParam(required = false) String orderId,
+            @Parameter(description = "Specific Order ID (UUID) to retrieve") @RequestParam(required = false) UUID orderId,
             @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
             @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
 
         String email = authentication.getName();
 
-        if (orderId != null && !orderId.isEmpty()) {
+        if (orderId != null) {
             logger.info("Processing getMyOrders for specific Order: {}, Customer: {}", orderId, email);
             OrderDTO order = orderService.getCustomerOrderById(orderId, email);
             logger.info("getMyOrders completed successfully for Order: {}", orderId);
@@ -96,7 +96,7 @@ public class CustomerOrderController {
             @ApiResponse(responseCode = "404", description = "Order not found", content = @Content),
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
-    public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable String orderId, Authentication authentication) {
+    public ResponseEntity<OrderDTO> cancelMyOrder(@PathVariable UUID orderId, Authentication authentication) {
         String email = authentication.getName();
         logger.info("Processing cancelMyOrder for Order: {}", orderId);
         OrderDTO order = orderService.cancelOrder(orderId, email);

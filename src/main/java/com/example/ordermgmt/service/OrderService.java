@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface OrderService {
     // Customer Operations
@@ -17,18 +18,18 @@ public interface OrderService {
 
     Page<OrderDTO> getCustomerOrders(String email, Pageable pageable);
 
-    OrderDTO getCustomerOrderById(String orderId, String email);
+    OrderDTO getCustomerOrderById(UUID orderId, String email);
 
-    OrderDTO cancelOrder(String orderId, String email);
+    OrderDTO cancelOrder(UUID orderId, String email);
 
     // Admin Operations
     List<OrderDTO> getAllOrders();
 
     Page<OrderDTO> getAllOrders(Pageable pageable);
 
-    OrderDTO getOrderById(String orderId);
+    OrderDTO getOrderById(UUID orderId);
 
-    OrderDTO updateOrderStatus(String orderId, OrderStatusUpdateDTO statusUpdate);
+    OrderDTO updateOrderStatus(UUID orderId, OrderStatusUpdateDTO statusUpdate);
 
     BulkOrderUpdateResultDTO updateOrdersStatus(List<BulkOrderStatusUpdateDTO> updates);
 }

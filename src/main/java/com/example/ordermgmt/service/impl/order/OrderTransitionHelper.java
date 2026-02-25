@@ -13,6 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 /**
  * Handles individual order status transitions in an isolated transaction.
  * Uses REQUIRES_NEW propagation so that:
@@ -34,7 +36,7 @@ public class OrderTransitionHelper {
      * Perform a status transition for a single order in its own transaction.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public OrderDTO updateOrderInternal(String orderId, String newStatusString) {
+    public OrderDTO updateOrderInternal(UUID orderId, String newStatusString) {
         logger.info("Processing updateOrderInternal for Order: {}", orderId);
 
         String newStatusName = newStatusString.trim().toUpperCase();
@@ -66,7 +68,7 @@ public class OrderTransitionHelper {
      * Double-checks that the order is still PENDING before cancelling.
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void cancelStalePendingOrder(String orderId) {
+    public void cancelStalePendingOrder(UUID orderId) {
         logger.info("Processing cancelStalePendingOrder for Order: {}", orderId);
 
         Orders order = ordersRepository.findById(orderId)

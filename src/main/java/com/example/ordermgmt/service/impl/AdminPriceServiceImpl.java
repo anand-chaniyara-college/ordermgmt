@@ -21,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -66,7 +67,7 @@ public class AdminPriceServiceImpl implements AdminPriceService {
 
     @Override
     @Transactional(readOnly = true)
-    public AdminPricingDTO getPrice(String itemId) {
+    public AdminPricingDTO getPrice(UUID itemId) {
         logger.info("Processing getPrice for Item: {}", itemId);
         return inventoryItemRepository.findById(itemId)
                 .map(this::convertItemToPricingDTO)

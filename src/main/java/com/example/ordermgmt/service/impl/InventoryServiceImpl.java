@@ -16,6 +16,7 @@ import com.example.ordermgmt.dto.AddStockRequestDTO;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -53,7 +54,7 @@ public class InventoryServiceImpl implements InventoryService {
 
     @Override
     @Transactional(readOnly = true)
-    public InventoryItemDTO getInventoryItem(String itemId) {
+    public InventoryItemDTO getInventoryItem(UUID itemId) {
         logger.info("Processing getInventoryItem for Item: {}", itemId);
 
         InventoryItem item = inventoryItemRepository.findById(itemId)
@@ -68,37 +69,40 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public List<String> addInventoryItems(List<InventoryItemDTO> items) {
+    public List<UUID> addInventoryItems(List<InventoryItemDTO> items) {
         logger.info("Processing addInventoryItems for {} items", items.size());
         List<InventoryItem> entitiesToSave = new ArrayList<>();
-        List<String> savedIds = new ArrayList<>();
+        List<UUID> savedIds = new ArrayList<>();
 
         for (InventoryItemDTO dto : items) {
-            // Validate itemName is present for creation
             if (dto.getItemName() == null || dto.getItemName().trim().isEmpty()) {
-                throw new InvalidOperationException("Item Name is required for creating new item: " + dto.getItemId());
+                throw new InvalidOperationException("Item Name is required for creating a new item");
             }
 
-            if (inventoryItemRepository.existsById(dto.getItemId())) {
-                logger.warn("Skipping addInventoryItems - Item ID {} already exists", dto.getItemId());
-                throw new InvalidOperationException("Item with ID " + dto.getItemId() + " already exists");
-            }
-            entitiesToSave.add(convertToEntity(dto));
-            savedIds.add(dto.getItemId());
+            InventoryItem item = new InventoryItem();
+            item.setItemName(dto.getItemName());
+            item.setAvailableStock(dto.getAvailableStock());
+            item.setReservedStock(dto.getReservedStock() != null ? dto.getReservedStock() : 0);
+            entitiesToSave.add(item);
         }
 
-        inventoryItemRepository.saveAll(entitiesToSave);
+        List<InventoryItem> saved = inventoryItemRepository.saveAll(entitiesToSave);
+        saved.forEach(i -> savedIds.add(i.getItemId()));
+
         logger.info("addInventoryItems completed successfully for {} items", items.size());
         return savedIds;
     }
 
     @Override
-    public List<String> updateInventoryItems(List<InventoryItemDTO> items) {
+    public List<UUID> updateInventoryItems(List<InventoryItemDTO> items) {
         logger.info("Processing updateInventoryItems for {} items", items.size());
         List<InventoryItem> entitiesToUpdate = new ArrayList<>();
-        List<String> updatedIds = new ArrayList<>();
+        List<UUID> updatedIds = new ArrayList<>();
 
         for (InventoryItemDTO dto : items) {
+            if (dto.getItemId() == null) {
+                throw new InvalidOperationException("Item ID is required for update");
+            }
             InventoryItem existingItem = inventoryItemRepository.findById(dto.getItemId())
                     .orElseThrow(() -> {
                         logger.warn("Skipping updateInventoryItems - Item {} not found", dto.getItemId());
@@ -123,10 +127,10 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public void deleteInventoryItems(List<String> itemIds) {
+    public void deleteInventoryItems(List<UUID> itemIds) {
         logger.info("Processing deleteInventoryItems for IDs: {}", itemIds);
 
-        for (String id : itemIds) {
+        for (UUID id : itemIds) {
             if (!inventoryItemRepository.existsById(id)) {
                 logger.warn("Skipping deleteInventoryItems - Item {} not found", id);
                 throw new ResourceNotFoundException("Inventory Item not found with ID: " + id);
@@ -138,10 +142,10 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public List<String> addStock(List<AddStockRequestDTO> items) {
+    public List<UUID> addStock(List<AddStockRequestDTO> items) {
         logger.info("Processing addStock for {} items", items.size());
         List<InventoryItem> entitiesToUpdate = new ArrayList<>();
-        List<String> updatedIds = new ArrayList<>();
+        List<UUID> updatedIds = new ArrayList<>();
 
         for (AddStockRequestDTO dto : items) {
             InventoryItem existingItem = inventoryItemRepository.findById(dto.getItemId())
@@ -167,14 +171,5 @@ public class InventoryServiceImpl implements InventoryService {
                 item.getItemName(),
                 item.getAvailableStock(),
                 item.getReservedStock());
-    }
-
-    private InventoryItem convertToEntity(InventoryItemDTO dto) {
-        InventoryItem item = new InventoryItem();
-        item.setItemId(dto.getItemId());
-        item.setItemName(dto.getItemName());
-        item.setAvailableStock(dto.getAvailableStock());
-        item.setReservedStock(dto.getReservedStock() != null ? dto.getReservedStock() : 0);
-        return item;
     }
 }

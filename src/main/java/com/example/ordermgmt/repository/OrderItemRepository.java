@@ -8,10 +8,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.UUID;
 
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.OrderItemId> {
-        List<OrderItem> findByOrderOrderId(String orderId);
+        List<OrderItem> findByOrderOrderId(UUID orderId);
 
         @Query("SELECT new com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO("
                         +

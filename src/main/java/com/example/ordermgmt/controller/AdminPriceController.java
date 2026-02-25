@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/admin/prices")
@@ -45,11 +46,11 @@ public class AdminPriceController {
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
     public ResponseEntity<?> getPrices(
-            @Parameter(description = "Specific Item ID to retrieve price for") @RequestParam(required = false) String itemId,
+            @Parameter(description = "Specific Item ID (UUID) to retrieve price for") @RequestParam(required = false) UUID itemId,
             @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
             @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
 
-        if (itemId != null && !itemId.isEmpty()) {
+        if (itemId != null) {
             logger.info("Processing getPrice for specific Item: {}", itemId);
             AdminPricingDTO price = adminPriceService.getPrice(itemId);
             logger.info("getPrice completed successfully for Item: {}", itemId);

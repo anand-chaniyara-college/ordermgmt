@@ -18,11 +18,9 @@ import java.util.UUID;
 @Schema(description = "Inventory item dto")
 public class InventoryItemDTO {
 
-    @NotNull(message = "Item ID is required")
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY, description = "System-generated UUID. Omit on creation; required on update.")
     private UUID itemId;
 
-    // Item Name is optional for updates, but required for creation (validated in
-    // service)
     @Pattern(regexp = "^[a-zA-Z0-9 \\-_.]+$", message = "Item Name must contain only alphanumeric characters, spaces, hyphens, underscores, or dots")
     @Size(max = 100, message = "Item Name must not exceed 100 characters")
     private String itemName;

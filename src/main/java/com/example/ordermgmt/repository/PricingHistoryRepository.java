@@ -6,11 +6,12 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface PricingHistoryRepository extends JpaRepository<PricingHistory, String> {
+public interface PricingHistoryRepository extends JpaRepository<PricingHistory, UUID> {
 
-    List<PricingHistory> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
+    List<PricingHistory> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(UUID itemId);
 
-    Optional<PricingHistory> findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(String itemId);
+    Optional<PricingHistory> findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(UUID itemId);
 }

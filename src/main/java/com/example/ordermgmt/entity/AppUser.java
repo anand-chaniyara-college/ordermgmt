@@ -41,7 +41,7 @@ public class AppUser {
     @Column(name = "isactive")
     private Boolean isActive = true;
 
-    @Column(name = "isPasswordChanged")
+    @Column(name = "ispasswordchanged")
     private Boolean isPasswordChanged = false;
 
     @CreatedDate

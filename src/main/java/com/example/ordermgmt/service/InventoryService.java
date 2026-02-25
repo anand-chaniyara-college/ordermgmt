@@ -6,19 +6,20 @@ import org.springframework.data.domain.Pageable;
 import com.example.ordermgmt.dto.AddStockRequestDTO;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface InventoryService {
     List<InventoryItemDTO> getAllInventory();
 
     Page<InventoryItemDTO> getAllInventory(Pageable pageable);
 
-    InventoryItemDTO getInventoryItem(String itemId);
+    InventoryItemDTO getInventoryItem(UUID itemId);
 
-    List<String> addInventoryItems(List<InventoryItemDTO> items);
+    List<UUID> addInventoryItems(List<InventoryItemDTO> items);
 
-    List<String> updateInventoryItems(List<InventoryItemDTO> items);
+    List<UUID> updateInventoryItems(List<InventoryItemDTO> items);
 
-    List<String> addStock(List<AddStockRequestDTO> items);
+    List<UUID> addStock(List<AddStockRequestDTO> items);
 
-    void deleteInventoryItems(List<String> itemIds);
+    void deleteInventoryItems(List<UUID> itemIds);
 }

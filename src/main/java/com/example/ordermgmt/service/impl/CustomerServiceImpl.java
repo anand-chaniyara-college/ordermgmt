@@ -12,8 +12,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.UUID;
-
 @Service
 public class CustomerServiceImpl implements CustomerService {
 
@@ -80,7 +78,6 @@ public class CustomerServiceImpl implements CustomerService {
     private Customer createNewCustomer(AppUser user) {
         logger.info("Processing createNewCustomer for customer: {}", user.getEmail());
         Customer newCustomer = new Customer();
-        newCustomer.setCustomerId(UUID.randomUUID().toString());
         newCustomer.setAppUser(user);
         return newCustomer;
     }

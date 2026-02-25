@@ -21,6 +21,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.UUID;
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -49,11 +50,11 @@ public class AdminOrderController {
             @ApiResponse(responseCode = "500", description = "Internal server error", content = @Content)
     })
     public ResponseEntity<?> getAllOrders(
-            @Parameter(description = "Specific Order ID to retrieve") @RequestParam(required = false) String orderId,
+            @Parameter(description = "Specific Order ID (UUID) to retrieve") @RequestParam(required = false) UUID orderId,
             @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
             @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
 
-        if (orderId != null && !orderId.isEmpty()) {
+        if (orderId != null) {
             logger.info("Processing getAllOrders for specific Order: {}", orderId);
             OrderDTO order = orderService.getOrderById(orderId);
             logger.info("getAllOrders completed successfully for Order: {}", orderId);

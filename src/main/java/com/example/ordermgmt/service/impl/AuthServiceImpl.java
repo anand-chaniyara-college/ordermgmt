@@ -83,13 +83,11 @@ public class AuthServiceImpl implements AuthService {
                 });
 
         AppUser newUser = new AppUser();
-        newUser.setUserId(UUID.randomUUID().toString());
         newUser.setEmail(request.getEmail());
         newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         newUser.setRole(role);
         newUser.setIsActive(true);
 
-        // Set security context for auditing
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 request.getEmail(), null, Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
         SecurityContextHolder.getContext().setAuthentication(authentication);
@@ -109,7 +107,6 @@ public class AuthServiceImpl implements AuthService {
 
     private void createEmptyCustomerProfile(AppUser user) {
         Customer customer = new Customer();
-        customer.setCustomerId(UUID.randomUUID().toString());
         customer.setAppUser(user);
         customerRepository.save(customer);
         logger.info("Empty customer profile created for: {}", user.getEmail());
@@ -138,7 +135,6 @@ public class AuthServiceImpl implements AuthService {
 
         String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
-        // Set security context for auditing
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 user.getEmail(), null,
                 Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
@@ -183,7 +179,6 @@ public class AuthServiceImpl implements AuthService {
 
         String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
 
-        // Set security context for auditing
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 user.getEmail(), null,
                 Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
