@@ -6,12 +6,13 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.UuidGenerator;
 
 @Getter
 @Setter
@@ -23,8 +24,9 @@ import org.springframework.data.annotation.LastModifiedBy;
 public class Orders {
 
     @Id
-    @Column(name = "orderid", length = 36)
-    private String orderId;
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(name = "orderid", updatable = false, nullable = false)
+    private UUID orderId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customerid", nullable = false)

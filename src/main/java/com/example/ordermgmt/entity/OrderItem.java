@@ -8,11 +8,11 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.UUID;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.time.LocalDateTime;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
@@ -69,10 +69,11 @@ public class OrderItem {
     @AllArgsConstructor
     @Embeddable
     public static class OrderItemId implements Serializable {
-        @Column(name = "orderid", length = 36)
-        private String orderId;
 
-        @Column(name = "itemid", length = 50)
-        private String itemId;
+        @Column(name = "orderid", updatable = false, nullable = false)
+        private UUID orderId;
+
+        @Column(name = "itemid", updatable = false, nullable = false)
+        private UUID itemId;
     }
 }

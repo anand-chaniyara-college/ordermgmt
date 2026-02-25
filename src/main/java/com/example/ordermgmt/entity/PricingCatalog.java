@@ -7,14 +7,12 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.springframework.data.annotation.CreatedBy;
 import jakarta.validation.constraints.PositiveOrZero;
-import org.hibernate.annotations.GenericGenerator;
 
 @Getter
 @Setter
@@ -26,8 +24,8 @@ import org.hibernate.annotations.GenericGenerator;
 public class PricingCatalog {
 
     @Id
-    @Column(name = "itemid", length = 50)
-    private String itemId;
+    @Column(name = "itemid", updatable = false, nullable = false)
+    private UUID itemId;
 
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId

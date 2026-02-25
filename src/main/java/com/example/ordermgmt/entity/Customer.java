@@ -6,12 +6,13 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.UuidGenerator;
 
 @Getter
 @Setter
@@ -23,8 +24,9 @@ import org.springframework.data.annotation.LastModifiedBy;
 public class Customer {
 
     @Id
-    @Column(name = "customerid", length = 36)
-    private String customerId;
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(name = "customerid", updatable = false, nullable = false)
+    private UUID customerId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "userid", nullable = false)
@@ -36,7 +38,7 @@ public class Customer {
     @Column(name = "lastname", length = 100)
     private String lastName;
 
-    @Column(name = "contactno", nullable = true, length = 20, unique = true)
+    @Column(name = "contactno", length = 20, unique = true)
     private String contactNo;
 
     @Column(name = "address", length = 255)

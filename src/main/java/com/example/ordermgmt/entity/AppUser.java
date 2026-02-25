@@ -6,12 +6,13 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.UuidGenerator;
 
 @Getter
 @Setter
@@ -23,8 +24,9 @@ import org.springframework.data.annotation.LastModifiedBy;
 public class AppUser {
 
     @Id
-    @Column(name = "userid", length = 36)
-    private String userId;
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(name = "userid", updatable = false, nullable = false)
+    private UUID userId;
 
     @Column(name = "email", nullable = false, unique = true)
     private String email;
@@ -38,6 +40,9 @@ public class AppUser {
 
     @Column(name = "isactive")
     private Boolean isActive = true;
+
+    @Column(name = "isPasswordChanged")
+    private Boolean isPasswordChanged = false;
 
     @CreatedDate
     @Column(name = "createdtimestamp", nullable = false, updatable = false)

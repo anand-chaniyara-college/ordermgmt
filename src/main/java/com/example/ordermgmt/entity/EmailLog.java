@@ -5,9 +5,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
+import org.hibernate.annotations.UuidGenerator;
 
 @Entity
 @Table(name = "EMAIL_LOG", schema = "ordermgmt")
@@ -18,15 +20,17 @@ import org.springframework.data.annotation.CreatedDate;
 public class EmailLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(name = "id", updatable = false, nullable = false)
+    private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "recipient", nullable = false)
     private String recipient;
 
+    @Column(name = "subject")
     private String subject;
 
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false)
     private String status;
 
     @CreatedBy
@@ -37,6 +41,6 @@ public class EmailLog {
     @Column(name = "sentat", nullable = false, updatable = false)
     private LocalDateTime sentAt;
 
-    @Column(length = 1000)
+    @Column(name = "errormessage", length = 1000)
     private String errorMessage;
 }

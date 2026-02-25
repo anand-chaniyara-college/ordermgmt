@@ -12,6 +12,7 @@ import jakarta.validation.constraints.NotEmpty;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
 @Data
 @NoArgsConstructor
@@ -19,11 +20,11 @@ import java.util.List;
 @Schema(description = "Order dto")
 public class OrderDTO {
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
-    private String orderId;
+    private UUID orderId;
 
     @JsonIgnore
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
-    private String customerId;
+    private UUID customerId;
 
     @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     private String status;

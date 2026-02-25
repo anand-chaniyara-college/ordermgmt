@@ -9,13 +9,13 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.AssertTrue;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
-import jakarta.persistence.Version;
+import org.hibernate.annotations.UuidGenerator;
 
 @Getter
 @Setter
@@ -27,8 +27,9 @@ import jakarta.persistence.Version;
 public class InventoryItem {
 
     @Id
-    @Column(name = "itemid", length = 50)
-    private String itemId;
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(name = "itemid", updatable = false, nullable = false)
+    private UUID itemId;
 
     @Column(name = "itemname", length = 100)
     private String itemName;

@@ -5,16 +5,15 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.GenericGenerator;
-
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-import jakarta.persistence.EntityListeners;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.UuidGenerator;
 
 @Getter
 @Setter
@@ -26,10 +25,9 @@ import org.springframework.data.annotation.LastModifiedBy;
 public class PricingHistory {
 
     @Id
-    @GeneratedValue(generator = "system-uuid")
-    @GenericGenerator(name = "system-uuid", strategy = "uuid2")
-    @Column(name = "historyid", length = 36)
-    private String historyId;
+    @UuidGenerator(style = UuidGenerator.Style.TIME)
+    @Column(name = "historyid", updatable = false, nullable = false)
+    private UUID historyId;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "itemid", referencedColumnName = "itemid", nullable = false, foreignKey = @ForeignKey(name = "FK_HISTORY_ITEM"))
@@ -41,6 +39,7 @@ public class PricingHistory {
     @Column(name = "newprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal newPrice;
 
+    @CreatedDate
     @Column(name = "createdtimestamp", nullable = false, updatable = false)
     private LocalDateTime createdTimestamp;
 
