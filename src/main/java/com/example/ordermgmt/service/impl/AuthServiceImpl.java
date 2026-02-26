@@ -1,11 +1,5 @@
 package com.example.ordermgmt.service.impl;
 
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import java.util.Collections;
-import java.util.Optional;
 import com.example.ordermgmt.dto.LoginRequestDTO;
 import com.example.ordermgmt.dto.LoginResponseDTO;
 import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
@@ -13,7 +7,6 @@ import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 import com.example.ordermgmt.dto.RegistrationRequestDTO;
 import com.example.ordermgmt.entity.AppUser;
 import com.example.ordermgmt.entity.Customer;
-import com.example.ordermgmt.entity.RefreshToken;
 import com.example.ordermgmt.entity.UserRole;
 import com.example.ordermgmt.exception.AccountInactiveException;
 import com.example.ordermgmt.exception.InvalidCredentialsException;
@@ -22,48 +15,56 @@ import com.example.ordermgmt.exception.RoleNotFoundException;
 import com.example.ordermgmt.exception.UserAlreadyExistsException;
 import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.CustomerRepository;
-import com.example.ordermgmt.repository.RefreshTokenRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
-import com.example.ordermgmt.service.TokenBlacklistService;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.AuthService;
+import com.example.ordermgmt.service.TokenBlacklistService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.Duration;
+import java.util.Collections;
 import java.util.UUID;
 
 @Service
 public class AuthServiceImpl implements AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
-    private static final long REFRESH_TOKEN_VALIDITY_MS = 1000L * 60 * 60 * 24 * 7; // 7 days
+    private static final String RT_PREFIX = "RT:";
 
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
     private final CustomerRepository customerRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
     private final TokenBlacklistService tokenBlacklistService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final StringRedisTemplate redisTemplate;
+
+    @Value("${app.jwt.refresh.expirationMs}")
+    private long refreshExpirationMs;
 
     public AuthServiceImpl(AppUserRepository appUserRepository,
             UserRoleRepository userRoleRepository,
             CustomerRepository customerRepository,
-            RefreshTokenRepository refreshTokenRepository,
             TokenBlacklistService tokenBlacklistService,
             PasswordEncoder passwordEncoder,
-            JwtUtil jwtUtil) {
+            JwtUtil jwtUtil,
+            StringRedisTemplate redisTemplate) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.customerRepository = customerRepository;
-        this.refreshTokenRepository = refreshTokenRepository;
         this.tokenBlacklistService = tokenBlacklistService;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -89,7 +90,8 @@ public class AuthServiceImpl implements AuthService {
         newUser.setIsActive(true);
 
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                request.getEmail(), null, Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
+                request.getEmail(), null,
+                Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
         try {
@@ -134,110 +136,71 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
-
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                user.getEmail(), null,
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        RefreshToken refreshToken;
-        try {
-            refreshToken = createRefreshToken(user);
-        } finally {
-            SecurityContextHolder.clearContext();
-        }
+        String refreshToken = createRefreshToken(user.getEmail());
 
         logger.info("loginUser completed successfully for User: {}", request.getEmail());
-
-        return new LoginResponseDTO(accessToken, refreshToken.getToken(), user.getRole().getRoleName(),
-                "Login successful");
+        return new LoginResponseDTO(accessToken, refreshToken, user.getRole().getRoleName(), "Login successful");
     }
 
     @Override
     @Transactional
     public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request, String accessToken) {
-        logger.info("Processing refreshToken for User");
+        logger.info("Processing refreshToken");
 
-        RefreshToken token = refreshTokenRepository.findByToken(request.getRefreshToken())
-                .orElseThrow(() -> {
-                    logger.error("refreshToken failed - Token not found");
-                    return new InvalidTokenException("Refresh token not found");
-                });
+        String storedEmail = redisTemplate.opsForValue().get(RT_PREFIX + request.getRefreshToken());
+        if (storedEmail == null) {
+            logger.warn("Skipping refreshToken - Token expired or not found");
+            throw new InvalidTokenException("Refresh token expired or revoked");
+        }
 
-        validateRefreshToken(token);
-
+        redisTemplate.delete(RT_PREFIX + request.getRefreshToken());
         blacklistAccessToken(accessToken);
 
-        token.setRevoked(true);
-        refreshTokenRepository.save(token);
+        AppUser user = appUserRepository.findByEmail(storedEmail)
+                .orElseThrow(() -> {
+                    logger.error("refreshToken failed - User not found for email: {}", storedEmail);
+                    return new InvalidTokenException("User not found for refresh token");
+                });
 
-        AppUser user = token.getAppUser();
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            logger.warn("Skipping refreshToken for User: {} - Account inactive", user.getEmail());
+            logger.warn("Skipping refreshToken for User: {} - Account inactive", storedEmail);
             throw new AccountInactiveException("User is inactive");
         }
 
         String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
+        String newRefreshToken = createRefreshToken(user.getEmail());
 
-        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                user.getEmail(), null,
-                Collections.singletonList(new SimpleGrantedAuthority(user.getRole().getRoleName())));
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        logger.info("refreshToken completed successfully for User: {}", storedEmail);
+        return new RefreshTokenResponseDTO(newAccessToken, newRefreshToken, "Bearer", "Token refreshed successfully");
+    }
 
-        RefreshToken newRefreshToken;
-        try {
-            newRefreshToken = createRefreshToken(user);
-        } finally {
-            SecurityContextHolder.clearContext();
+    @Override
+    @Transactional
+    public void logoutUser(RefreshTokenRequestDTO request, String accessToken) {
+        logger.info("Processing logoutUser");
+
+        blacklistAccessToken(accessToken);
+
+        String tokenValue = request.getRefreshToken();
+        if (tokenValue != null && !tokenValue.isBlank()) {
+            redisTemplate.delete(RT_PREFIX + tokenValue);
         }
 
-        logger.info("refreshToken completed successfully for User: {}", user.getEmail());
-        return new RefreshTokenResponseDTO(newAccessToken, newRefreshToken.getToken(), "Bearer",
-                "Token refreshed successfully");
+        logger.info("logoutUser completed successfully");
+    }
+
+    private String createRefreshToken(String email) {
+        String tokenValue = UUID.randomUUID().toString();
+        redisTemplate.opsForValue().set(
+                RT_PREFIX + tokenValue,
+                email,
+                Duration.ofMillis(refreshExpirationMs));
+        return tokenValue;
     }
 
     private void blacklistAccessToken(String accessToken) {
         if (accessToken != null && !accessToken.isBlank()) {
             tokenBlacklistService.blacklistToken(accessToken);
         }
-    }
-
-    private void validateRefreshToken(RefreshToken token) {
-        if (token.getExpiryDate().isBefore(Instant.now())) {
-            logger.warn("Skipping refreshToken - Token expired");
-            throw new InvalidTokenException("Refresh token expired");
-        }
-
-        if (Boolean.TRUE.equals(token.getRevoked())) {
-            logger.warn("Skipping refreshToken - Token revoked");
-            throw new InvalidTokenException("Refresh token revoked");
-        }
-    }
-
-    private RefreshToken createRefreshToken(AppUser user) {
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setTokenId(UUID.randomUUID().toString());
-        refreshToken.setAppUser(user);
-        refreshToken.setExpiryDate(Instant.now().plusMillis(REFRESH_TOKEN_VALIDITY_MS));
-        refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setRevoked(false);
-
-        return refreshTokenRepository.save(refreshToken);
-    }
-
-    @Override
-    @Transactional
-    public void logoutUser(RefreshTokenRequestDTO request, String accessToken) {
-        logger.info("Processing logoutUser for User");
-
-        blacklistAccessToken(accessToken);
-
-        refreshTokenRepository.findByToken(request.getRefreshToken()).ifPresent(token -> {
-            token.setRevoked(true);
-            refreshTokenRepository.save(token);
-            logger.info("Refresh token revoked");
-        });
-
-        logger.info("logoutUser completed successfully");
     }
 }

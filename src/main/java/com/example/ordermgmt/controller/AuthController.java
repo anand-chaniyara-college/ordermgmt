@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import com.example.ordermgmt.service.RateLimitingService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,8 +31,12 @@ public class AuthController {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
     private static final String BEARER_PREFIX = "Bearer ";
-    private static final int RATE_LIMIT_REQUESTS = 1;
-    private static final int RATE_LIMIT_WINDOW_SECONDS = 60;
+
+    @Value("${app.rate-limit.auth.requests}")
+    private int rateLimitRequests;
+
+    @Value("${app.rate-limit.auth.window-seconds}")
+    private int rateLimitWindowSeconds;
 
     private final AuthService authService;
     private final RateLimitingService rateLimitingService;
@@ -53,7 +58,7 @@ public class AuthController {
             HttpServletRequest servletRequest) {
         String clientIp = getClientIp(servletRequest);
 
-        if (!rateLimitingService.allowRequest(clientIp, RATE_LIMIT_REQUESTS, RATE_LIMIT_WINDOW_SECONDS)) {
+        if (!rateLimitingService.allowRequest(clientIp, rateLimitRequests, rateLimitWindowSeconds)) {
             logger.warn("Rate limit exceeded for IP: {}", clientIp);
             return ResponseEntity.status(429)
                     .body(Map.of("message", "Too many registration attempts. Please try again later."));
