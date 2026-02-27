@@ -1,7 +1,7 @@
 package com.example.ordermgmt.service.impl;
 
+import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.TokenBlacklistService;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
@@ -15,20 +15,25 @@ public class TokenBlacklistServiceImpl implements TokenBlacklistService {
     private static final Logger logger = LoggerFactory.getLogger(TokenBlacklistServiceImpl.class);
     private static final String BLACKLIST_PREFIX = "blacklist:access:";
 
-    private final long jwtExpirationMs;
+    private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
 
-    public TokenBlacklistServiceImpl(@Value("${jwt.expiration}") long jwtExpirationMs,
-            StringRedisTemplate redisTemplate) {
-        this.jwtExpirationMs = jwtExpirationMs;
+    public TokenBlacklistServiceImpl(JwtUtil jwtUtil, StringRedisTemplate redisTemplate) {
+        this.jwtUtil = jwtUtil;
         this.redisTemplate = redisTemplate;
     }
 
     @Override
     public void blacklistToken(String token) {
         String key = BLACKLIST_PREFIX + token;
+        long remainingTtlMs = jwtUtil.getRemainingValidityMillis(token);
 
-        redisTemplate.opsForValue().set(key, "true", jwtExpirationMs, TimeUnit.MILLISECONDS);
+        if (remainingTtlMs <= 0) {
+            logger.debug("Skipping blacklist for expired/invalid token: {}", messageDigest(token));
+            return;
+        }
+
+        redisTemplate.opsForValue().set(key, "true", remainingTtlMs, TimeUnit.MILLISECONDS);
         logger.debug("Token blacklisted: {}", messageDigest(token));
     }
 

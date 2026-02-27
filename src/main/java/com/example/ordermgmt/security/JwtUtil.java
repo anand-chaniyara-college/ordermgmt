@@ -77,4 +77,22 @@ public class JwtUtil {
         }
         return false;
     }
+
+    public long getRemainingValidityMillis(String token) {
+        try {
+            Date expiration = Jwts.parser()
+                    .verifyWith(key)
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload()
+                    .getExpiration();
+            long remainingMs = expiration.getTime() - System.currentTimeMillis();
+            return Math.max(remainingMs, 0L);
+        } catch (io.jsonwebtoken.ExpiredJwtException e) {
+            return 0L;
+        } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
+            logger.warn("Unable to compute JWT remaining validity: {}", e.getMessage());
+            return 0L;
+        }
+    }
 }
