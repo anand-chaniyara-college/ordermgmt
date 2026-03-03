@@ -1,0 +1,333 @@
+-- =============================================================================
+-- ORDERMGMT CLEAN SCHEMA SETUP (DE-DUPLICATED)
+-- - Single implementation for each constraint/index
+-- - Consistent constraint naming
+-- - Consistent audit timestamp columns
+-- =============================================================================
+
+CREATE SCHEMA IF NOT EXISTS ordermgmt;
+SET search_path TO ordermgmt;
+
+
+-- =============================================================================
+-- 1) FUNCTIONS
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION ordermgmt.prevent_pricing_history_modification()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RAISE EXCEPTION 'PRICING_HISTORY is immutable. UPDATE and DELETE operations are not permitted.';
+    RETURN NULL;
+END;
+$$;
+
+
+-- =============================================================================
+-- 2) TABLE SKELETON
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS ordermgmt.organization (
+    org_id uuid DEFAULT gen_random_uuid() NOT NULL,
+    name character varying(255) NOT NULL,
+    subdomain character varying(100) NOT NULL,
+    isactive boolean DEFAULT true NOT NULL,
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updatedtimestamp timestamp(6) without time zone,
+    createdby character varying(255),
+    updatedby character varying(255),
+    description character varying(1000)
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.user_role (
+    roleid integer NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    rolename character varying(50) NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.order_status_lookup (
+    statusid integer NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    statusname character varying(50) NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.app_user (
+    userid uuid NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    email character varying(255) NOT NULL,
+    isactive boolean,
+    ispasswordchanged boolean,
+    passwordhash character varying(255) NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone,
+    roleid integer NOT NULL,
+    org_id uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.customer (
+    customerid uuid NOT NULL,
+    address character varying(255),
+    contactno character varying(20),
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    firstname character varying(100),
+    lastname character varying(100),
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone,
+    userid uuid NOT NULL,
+    org_id uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.inventory_item (
+    itemid uuid NOT NULL,
+    availablestock integer NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    itemname character varying(100),
+    reservedstock integer NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone,
+    version bigint,
+    org_id uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.pricing_catalog (
+    itemid uuid NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    unitprice numeric(19,4) NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.pricing_history (
+    historyid uuid NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    newprice numeric(19,4) NOT NULL,
+    oldprice numeric(19,4),
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone,
+    itemid uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.orders (
+    orderid uuid NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone,
+    customerid uuid NOT NULL,
+    statusid integer NOT NULL,
+    org_id uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.order_item (
+    itemid uuid NOT NULL,
+    createdby character varying(255),
+    createdtimestamp timestamp(6) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    quantity integer NOT NULL,
+    unitprice numeric(19,4) NOT NULL,
+    updatedby character varying(255),
+    updatedtimestamp timestamp(6) without time zone,
+    orderid uuid NOT NULL,
+    org_id uuid NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ordermgmt.email_log (
+    id uuid NOT NULL,
+    createdby character varying(255),
+    errormessage character varying(1000),
+    recipient character varying(255) NOT NULL,
+    sentat timestamp(6) without time zone NOT NULL,
+    status character varying(255) NOT NULL,
+    subject character varying(255),
+    org_id uuid NOT NULL
+);
+
+-- =============================================================================
+-- 3) CONSTRAINTS (ADDED ONCE, WITH CONSISTENT NAMES)
+-- =============================================================================
+
+-- Primary keys
+ALTER TABLE ONLY ordermgmt.organization
+    ADD CONSTRAINT pk_organization PRIMARY KEY (org_id);
+
+ALTER TABLE ONLY ordermgmt.user_role
+    ADD CONSTRAINT pk_user_role PRIMARY KEY (roleid);
+
+ALTER TABLE ONLY ordermgmt.order_status_lookup
+    ADD CONSTRAINT pk_order_status_lookup PRIMARY KEY (statusid);
+
+ALTER TABLE ONLY ordermgmt.app_user
+    ADD CONSTRAINT pk_app_user PRIMARY KEY (userid);
+
+ALTER TABLE ONLY ordermgmt.customer
+    ADD CONSTRAINT pk_customer PRIMARY KEY (customerid);
+
+ALTER TABLE ONLY ordermgmt.inventory_item
+    ADD CONSTRAINT pk_inventory_item PRIMARY KEY (itemid);
+
+ALTER TABLE ONLY ordermgmt.pricing_catalog
+    ADD CONSTRAINT pk_pricing_catalog PRIMARY KEY (itemid);
+
+ALTER TABLE ONLY ordermgmt.pricing_history
+    ADD CONSTRAINT pk_pricing_history PRIMARY KEY (historyid);
+
+ALTER TABLE ONLY ordermgmt.orders
+    ADD CONSTRAINT pk_orders PRIMARY KEY (orderid);
+
+ALTER TABLE ONLY ordermgmt.order_item
+    ADD CONSTRAINT pk_order_item PRIMARY KEY (itemid, orderid);
+
+ALTER TABLE ONLY ordermgmt.email_log
+    ADD CONSTRAINT pk_email_log PRIMARY KEY (id);
+
+-- Unique constraints
+ALTER TABLE ONLY ordermgmt.user_role
+    ADD CONSTRAINT uq_user_role_rolename UNIQUE (rolename);
+
+ALTER TABLE ONLY ordermgmt.order_status_lookup
+    ADD CONSTRAINT uq_order_status_lookup_statusname UNIQUE (statusname);
+
+ALTER TABLE ONLY ordermgmt.organization
+    ADD CONSTRAINT uq_organization_subdomain UNIQUE (subdomain);
+
+-- Check constraints
+ALTER TABLE ONLY ordermgmt.inventory_item
+    ADD CONSTRAINT ck_inventory_item_availablestock_nonnegative CHECK (availablestock >= 0);
+
+ALTER TABLE ONLY ordermgmt.inventory_item
+    ADD CONSTRAINT ck_inventory_item_reservedstock_nonnegative CHECK (reservedstock >= 0);
+
+-- Foreign keys
+ALTER TABLE ONLY ordermgmt.app_user
+    ADD CONSTRAINT fk_app_user_role
+    FOREIGN KEY (roleid) REFERENCES ordermgmt.user_role(roleid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.app_user
+    ADD CONSTRAINT fk_app_user_org
+    FOREIGN KEY (org_id) REFERENCES ordermgmt.organization(org_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.customer
+    ADD CONSTRAINT fk_customer_user
+    FOREIGN KEY (userid) REFERENCES ordermgmt.app_user(userid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.customer
+    ADD CONSTRAINT fk_customer_org
+    FOREIGN KEY (org_id) REFERENCES ordermgmt.organization(org_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.email_log
+    ADD CONSTRAINT fk_email_log_org
+    FOREIGN KEY (org_id) REFERENCES ordermgmt.organization(org_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.inventory_item
+    ADD CONSTRAINT fk_inventory_item_org
+    FOREIGN KEY (org_id) REFERENCES ordermgmt.organization(org_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.orders
+    ADD CONSTRAINT fk_orders_customer
+    FOREIGN KEY (customerid) REFERENCES ordermgmt.customer(customerid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.orders
+    ADD CONSTRAINT fk_orders_status
+    FOREIGN KEY (statusid) REFERENCES ordermgmt.order_status_lookup(statusid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.orders
+    ADD CONSTRAINT fk_orders_org
+    FOREIGN KEY (org_id) REFERENCES ordermgmt.organization(org_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.order_item
+    ADD CONSTRAINT fk_order_item_order
+    FOREIGN KEY (orderid) REFERENCES ordermgmt.orders(orderid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.order_item
+    ADD CONSTRAINT fk_order_item_inventory
+    FOREIGN KEY (itemid) REFERENCES ordermgmt.inventory_item(itemid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.order_item
+    ADD CONSTRAINT fk_order_item_org
+    FOREIGN KEY (org_id) REFERENCES ordermgmt.organization(org_id)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.pricing_catalog
+    ADD CONSTRAINT fk_pricing_catalog_item
+    FOREIGN KEY (itemid) REFERENCES ordermgmt.inventory_item(itemid)
+    ON UPDATE CASCADE ON DELETE RESTRICT;
+
+ALTER TABLE ONLY ordermgmt.pricing_history
+    ADD CONSTRAINT fk_pricing_history_item
+    FOREIGN KEY (itemid) REFERENCES ordermgmt.inventory_item(itemid)
+    ON UPDATE RESTRICT ON DELETE RESTRICT;
+
+
+-- =============================================================================
+-- 4) INDEXES (ADDED ONCE)
+-- =============================================================================
+
+CREATE INDEX idx_app_user_org_id ON ordermgmt.app_user USING btree (org_id);
+CREATE INDEX idx_app_user_roleid ON ordermgmt.app_user USING btree (roleid);
+
+CREATE INDEX idx_customer_org_id ON ordermgmt.customer USING btree (org_id);
+CREATE INDEX idx_customer_userid ON ordermgmt.customer USING btree (userid);
+
+CREATE INDEX idx_email_log_org_id ON ordermgmt.email_log USING btree (org_id);
+CREATE INDEX idx_email_log_sentat ON ordermgmt.email_log USING btree (sentat);
+CREATE INDEX idx_email_log_status ON ordermgmt.email_log USING btree (status);
+
+CREATE INDEX idx_inventory_item_org_id ON ordermgmt.inventory_item USING btree (org_id);
+
+CREATE INDEX idx_order_item_orderid ON ordermgmt.order_item USING btree (orderid);
+CREATE INDEX idx_order_item_org_id ON ordermgmt.order_item USING btree (org_id);
+
+CREATE INDEX idx_orders_created ON ordermgmt.orders USING btree (createdtimestamp);
+CREATE INDEX idx_orders_customerid ON ordermgmt.orders USING btree (customerid);
+CREATE INDEX idx_orders_org_id ON ordermgmt.orders USING btree (org_id);
+CREATE INDEX idx_orders_status_created ON ordermgmt.orders USING btree (statusid, createdtimestamp);
+CREATE INDEX idx_orders_statusid ON ordermgmt.orders USING btree (statusid);
+
+CREATE INDEX idx_pricing_history_created ON ordermgmt.pricing_history USING btree (createdtimestamp);
+CREATE INDEX idx_pricing_history_item_created ON ordermgmt.pricing_history USING btree (itemid, createdtimestamp DESC);
+CREATE INDEX idx_pricing_history_itemid ON ordermgmt.pricing_history USING btree (itemid);
+
+-- Tenant-scoped uniqueness
+CREATE UNIQUE INDEX uq_app_user_email_org
+    ON ordermgmt.app_user USING btree (lower((email)::text), org_id);
+
+CREATE UNIQUE INDEX uq_customer_contactno_org
+    ON ordermgmt.customer USING btree (contactno, org_id)
+    WHERE (contactno IS NOT NULL);
+
+
+-- =============================================================================
+-- 5) TRIGGERS
+-- =============================================================================
+
+CREATE TRIGGER trg_pricing_history_no_update
+    BEFORE UPDATE ON ordermgmt.pricing_history
+    FOR EACH ROW
+    EXECUTE FUNCTION ordermgmt.prevent_pricing_history_modification();
+
+CREATE TRIGGER trg_pricing_history_no_delete
+    BEFORE DELETE ON ordermgmt.pricing_history
+    FOR EACH ROW
+    EXECUTE FUNCTION ordermgmt.prevent_pricing_history_modification();
