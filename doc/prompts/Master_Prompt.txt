@@ -73,6 +73,8 @@ Before refactoring OR adding features:
 4. Identify anti-patterns
    DO NOT FIX THEM YET
 
+5. Never use directly full path to use anything, go and proper IMPORT first then use that related imported. example com.pkg.subpkg.somethingFunction     -> import com.pkg.subpkg    somwethingFuction
+
 Only after this full understanding proceed.
 Also needed proper import statement before use related from that package. No direct use of package path.
 
