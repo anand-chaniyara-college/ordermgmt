@@ -1,12 +1,9 @@
 package com.example.ordermgmt.dto;
 
-import io.swagger.v3.oas.annotations.media.Schema;
-
-
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
+import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -14,8 +11,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Schema(description = "Registration request dto")
-public class RegistrationRequestDTO {
+public class CreateOrgAdminRequestDTO {
+
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     private String email;
@@ -24,11 +21,5 @@ public class RegistrationRequestDTO {
     @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
-    @NotBlank(message = "Role is required")
-    @Pattern(regexp = "ADMIN|CUSTOMER", message = "Role must be either ADMIN or CUSTOMER")
-    private String roleName;
-
-    @NotBlank(message = "Organization subdomain is required")
-    @Pattern(regexp = "^[a-zA-Z0-9-]+$", message = "Organization subdomain contains invalid characters")
-    private String orgSubdomain;
+    private UUID orgId;
 }

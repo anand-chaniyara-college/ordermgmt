@@ -7,14 +7,19 @@ import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 import com.example.ordermgmt.dto.RegistrationRequestDTO;
 import com.example.ordermgmt.entity.AppUser;
 import com.example.ordermgmt.entity.Customer;
+import com.example.ordermgmt.entity.Organization;
 import com.example.ordermgmt.entity.UserRole;
 import com.example.ordermgmt.exception.AccountInactiveException;
 import com.example.ordermgmt.exception.InvalidCredentialsException;
 import com.example.ordermgmt.exception.InvalidTokenException;
+import com.example.ordermgmt.exception.OrganizationInactiveException;
+import com.example.ordermgmt.exception.RegistrationForbiddenException;
+import com.example.ordermgmt.exception.ResourceNotFoundException;
 import com.example.ordermgmt.exception.RoleNotFoundException;
 import com.example.ordermgmt.exception.UserAlreadyExistsException;
 import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.CustomerRepository;
+import com.example.ordermgmt.repository.OrganizationRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.AuthService;
@@ -39,10 +44,13 @@ public class AuthServiceImpl implements AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final String RT_PREFIX = "RT:";
+    private static final String ROLE_CUSTOMER = "CUSTOMER";
+    private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
 
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
     private final CustomerRepository customerRepository;
+    private final OrganizationRepository organizationRepository;
     private final TokenBlacklistService tokenBlacklistService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
@@ -54,6 +62,7 @@ public class AuthServiceImpl implements AuthService {
     public AuthServiceImpl(AppUserRepository appUserRepository,
             UserRoleRepository userRoleRepository,
             CustomerRepository customerRepository,
+            OrganizationRepository organizationRepository,
             TokenBlacklistService tokenBlacklistService,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil,
@@ -61,6 +70,7 @@ public class AuthServiceImpl implements AuthService {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.customerRepository = customerRepository;
+        this.organizationRepository = organizationRepository;
         this.tokenBlacklistService = tokenBlacklistService;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
@@ -77,17 +87,36 @@ public class AuthServiceImpl implements AuthService {
             throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
         }
 
-        UserRole role = userRoleRepository.findByRoleName(request.getRoleName())
+        if (!ROLE_CUSTOMER.equalsIgnoreCase(request.getRoleName())) {
+            logger.warn("Skipping registerUser for User: {} - Public registration supports CUSTOMER only",
+                    request.getEmail());
+            throw new RegistrationForbiddenException("Only CUSTOMER registration is allowed on this endpoint");
+        }
+
+        UserRole role = userRoleRepository.findByRoleName(ROLE_CUSTOMER)
                 .orElseThrow(() -> {
                     logger.error("registerUser failed for User: {} - Role not found", request.getEmail());
-                    return new RoleNotFoundException("Role not found: " + request.getRoleName());
+                    return new RoleNotFoundException("Role not found: " + ROLE_CUSTOMER);
                 });
+
+        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping registerUser for User: {} - Organization not found: {}",
+                            request.getEmail(), request.getOrgSubdomain());
+                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
+                });
+        if (!Boolean.TRUE.equals(org.getIsActive())) {
+            logger.warn("Skipping registerUser for User: {} - Organization inactive: {}",
+                    request.getEmail(), request.getOrgSubdomain());
+            throw new OrganizationInactiveException("Organization is inactive: " + request.getOrgSubdomain());
+        }
 
         AppUser newUser = new AppUser();
         newUser.setEmail(request.getEmail());
         newUser.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         newUser.setRole(role);
         newUser.setIsActive(true);
+        newUser.setOrgId(org.getOrgId());
 
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 request.getEmail(), null,
@@ -97,9 +126,7 @@ public class AuthServiceImpl implements AuthService {
         try {
             appUserRepository.save(newUser);
 
-            if ("CUSTOMER".equalsIgnoreCase(request.getRoleName())) {
-                createEmptyCustomerProfile(newUser);
-            }
+            createEmptyCustomerProfile(newUser);
         } finally {
             SecurityContextHolder.clearContext();
         }
@@ -110,6 +137,7 @@ public class AuthServiceImpl implements AuthService {
     private void createEmptyCustomerProfile(AppUser user) {
         Customer customer = new Customer();
         customer.setAppUser(user);
+        customer.setOrgId(user.getOrgId());
         customerRepository.save(customer);
         logger.info("Empty customer profile created for: {}", user.getEmail());
     }
@@ -135,7 +163,10 @@ public class AuthServiceImpl implements AuthService {
             throw new AccountInactiveException("User is inactive");
         }
 
-        String accessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
+        String accessToken = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRole().getRoleName(),
+                resolveTokenOrgId(user));
         String refreshToken = createRefreshToken(user.getEmail());
 
         logger.info("loginUser completed successfully for User: {}", request.getEmail());
@@ -167,7 +198,10 @@ public class AuthServiceImpl implements AuthService {
             throw new AccountInactiveException("User is inactive");
         }
 
-        String newAccessToken = jwtUtil.generateToken(user.getEmail(), user.getRole().getRoleName());
+        String newAccessToken = jwtUtil.generateToken(
+                user.getEmail(),
+                user.getRole().getRoleName(),
+                resolveTokenOrgId(user));
         String newRefreshToken = createRefreshToken(user.getEmail());
 
         logger.info("refreshToken completed successfully for User: {}", storedEmail);
@@ -202,5 +236,12 @@ public class AuthServiceImpl implements AuthService {
         if (accessToken != null && !accessToken.isBlank()) {
             tokenBlacklistService.blacklistToken(accessToken);
         }
+    }
+
+    private UUID resolveTokenOrgId(AppUser user) {
+        if (ROLE_SUPER_ADMIN.equals(user.getRole().getRoleName())) {
+            return null;
+        }
+        return user.getOrgId();
     }
 }

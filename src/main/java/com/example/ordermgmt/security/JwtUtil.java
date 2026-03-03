@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.slf4j.Logger;
@@ -32,9 +33,17 @@ public class JwtUtil {
     }
 
     public String generateToken(String email, String role) {
-        return Jwts.builder()
+        return generateToken(email, role, null);
+    }
+
+    public String generateToken(String email, String role, UUID orgId) {
+        io.jsonwebtoken.JwtBuilder builder = Jwts.builder()
                 .subject(email)
-                .claim("role", role)
+                .claim("role", role);
+        if (orgId != null) {
+            builder.claim("org_id", orgId.toString());
+        }
+        return builder
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expirationTimeMs))
                 .signWith(key)
@@ -57,6 +66,19 @@ public class JwtUtil {
                 .parseSignedClaims(token)
                 .getPayload()
                 .get("role", String.class);
+    }
+
+    public UUID extractOrgId(String token) {
+        String orgId = Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .get("org_id", String.class);
+        if (orgId == null || orgId.isBlank()) {
+            return null;
+        }
+        return UUID.fromString(orgId);
     }
 
     public boolean validateToken(String token) {

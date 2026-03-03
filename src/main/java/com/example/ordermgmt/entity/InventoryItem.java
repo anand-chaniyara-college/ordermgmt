@@ -15,6 +15,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.TenantId;
 import org.hibernate.annotations.UuidGenerator;
 
 @Getter
@@ -51,6 +52,14 @@ public class InventoryItem {
     @Version
     @Column(name = "version")
     private Long version;
+
+    @TenantId
+    @Column(name = "org_id")
+    private UUID orgId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "org_id", insertable = false, updatable = false)
+    private Organization org;
 
     @AssertTrue(message = "Available stock must be greater than or equal to reserved stock")
     public boolean isStockConsistent() {

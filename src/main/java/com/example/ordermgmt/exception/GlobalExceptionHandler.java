@@ -29,8 +29,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<RegistrationResponseDTO> handleUserAlreadyExistsException(UserAlreadyExistsException ex,
             HttpServletRequest request) {
-        logger.warn("Registration failed at {}: {}", request.getRequestURI(), ex.getMessage());
-        return ResponseEntity.badRequest().body(new RegistrationResponseDTO(ex.getMessage()));
+        logger.warn("Conflict at {}: {}", request.getRequestURI(), ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new RegistrationResponseDTO(ex.getMessage()));
     }
 
     @ExceptionHandler(RoleNotFoundException.class)
@@ -91,6 +91,28 @@ public class GlobalExceptionHandler {
         response.put("error", "Resource Not Found");
         response.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    @ExceptionHandler(RegistrationForbiddenException.class)
+    public ResponseEntity<Map<String, String>> handleRegistrationForbiddenException(
+            RegistrationForbiddenException ex,
+            HttpServletRequest request) {
+        logger.warn("Registration forbidden at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Forbidden");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+    }
+
+    @ExceptionHandler(OrganizationInactiveException.class)
+    public ResponseEntity<Map<String, String>> handleOrganizationInactiveException(
+            OrganizationInactiveException ex,
+            HttpServletRequest request) {
+        logger.warn("Organization inactive at {}: {}", request.getRequestURI(), ex.getMessage());
+        Map<String, String> response = new HashMap<>();
+        response.put("error", "Conflict");
+        response.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
     }
 
     @ExceptionHandler(InvalidOrderTransitionException.class)

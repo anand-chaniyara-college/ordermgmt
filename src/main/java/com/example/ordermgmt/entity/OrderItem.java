@@ -17,6 +17,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.TenantId;
 
 @Getter
 @Setter
@@ -47,6 +48,14 @@ public class OrderItem {
     @PositiveOrZero(message = "Unit price must be non-negative")
     @Column(name = "unitprice", nullable = false, precision = 19, scale = 4)
     private BigDecimal unitPrice;
+
+    @TenantId
+    @Column(name = "org_id")
+    private UUID orgId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "org_id", insertable = false, updatable = false)
+    private Organization org;
 
     @CreatedDate
     @Column(name = "createdtimestamp", nullable = false, updatable = false)

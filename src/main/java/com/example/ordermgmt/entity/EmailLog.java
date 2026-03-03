@@ -9,6 +9,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
+import org.hibernate.annotations.TenantId;
 import org.hibernate.annotations.UuidGenerator;
 
 @Entity
@@ -32,6 +33,14 @@ public class EmailLog {
 
     @Column(name = "status", nullable = false)
     private String status;
+
+    @TenantId
+    @Column(name = "org_id")
+    private UUID orgId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "org_id", insertable = false, updatable = false)
+    private Organization org;
 
     @CreatedBy
     @Column(name = "createdby", updatable = false)

@@ -47,13 +47,16 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    @Operation(summary = "Register a New User", description = "Create a new account by providing your details and choosing a role (CUSTOMER or ADMIN). Rate-limited to 1 request per minute per IP.")
+    @Operation(summary = "Register a New Customer", description = "Create a new CUSTOMER account for a specific organization subdomain. Rate-limited to 1 request per minute per IP.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "User registered successfully", content = @Content(schema = @Schema(implementation = RegistrationResponseDTO.class))),
-            @ApiResponse(responseCode = "400", description = "Invalid input or email already exists", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid input", content = @Content),
+            @ApiResponse(responseCode = "403", description = "Only CUSTOMER registration allowed", content = @Content),
+            @ApiResponse(responseCode = "404", description = "Organization not found", content = @Content),
+            @ApiResponse(responseCode = "409", description = "Duplicate email or organization inactive", content = @Content),
             @ApiResponse(responseCode = "429", description = "Too many registration attempts — returns {\"message\": \"...\"}", content = @Content)
     })
-    @SecurityRequirements() // No auth required
+    @SecurityRequirements()
     public ResponseEntity<?> register(@Valid @RequestBody RegistrationRequestDTO request,
             HttpServletRequest servletRequest) {
         String clientIp = getClientIp(servletRequest);
@@ -77,7 +80,7 @@ public class AuthController {
             @ApiResponse(responseCode = "200", description = "Login successful", content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))),
             @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)
     })
-    @SecurityRequirements() // No auth required
+    @SecurityRequirements()
     public ResponseEntity<LoginResponseDTO> login(@Valid @RequestBody LoginRequestDTO request) {
         logger.info("Processing login for User: {}", request.getEmail());
         LoginResponseDTO response = authService.loginUser(request);

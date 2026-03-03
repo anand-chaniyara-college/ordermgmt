@@ -1,0 +1,93 @@
+package com.example.ordermgmt.controller;
+
+import com.example.ordermgmt.dto.CreateAdminRequestDTO;
+import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
+import com.example.ordermgmt.dto.UserResponseDTO;
+import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
+import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
+import com.example.ordermgmt.service.AdminAnalyticsService;
+import com.example.ordermgmt.service.OrgAdminService;
+import jakarta.validation.Valid;
+import java.security.Principal;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/org-admin")
+@Validated
+public class OrgAdminController {
+
+    private static final Logger logger = LoggerFactory.getLogger(OrgAdminController.class);
+
+    private final OrgAdminService orgAdminService;
+    private final AdminAnalyticsService adminAnalyticsService;
+
+    public OrgAdminController(OrgAdminService orgAdminService, AdminAnalyticsService adminAnalyticsService) {
+        this.orgAdminService = orgAdminService;
+        this.adminAnalyticsService = adminAnalyticsService;
+    }
+
+    @PostMapping("/admins")
+    public ResponseEntity<UserResponseDTO> createAdmin(
+            @Valid @RequestBody CreateAdminRequestDTO request,
+            Principal principal) {
+        logger.info("Processing createAdmin for OrgAdmin: {}", principal.getName());
+        UserResponseDTO response = orgAdminService.createAdmin(principal.getName(), request);
+        logger.info("createAdmin completed successfully for OrgAdmin: {}", principal.getName());
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    @GetMapping("/admins")
+    public ResponseEntity<Map<String, List<UserResponseDTO>>> listAdmins(Principal principal) {
+        logger.info("Processing listAdmins for OrgAdmin: {}", principal.getName());
+        List<UserResponseDTO> admins = orgAdminService.listAdmins(principal.getName());
+        logger.info("listAdmins completed successfully for OrgAdmin: {}", principal.getName());
+        return ResponseEntity.ok(Map.of("admins", admins));
+    }
+
+    @PatchMapping("/admins/{id}/status")
+    public ResponseEntity<Map<String, String>> updateAdminStatus(
+            @PathVariable("id") UUID adminUserId,
+            @Valid @RequestBody UpdateUserStatusRequestDTO request,
+            Principal principal) {
+        logger.info("Processing updateAdminStatus for User: {}", adminUserId);
+        orgAdminService.updateAdminStatus(principal.getName(), adminUserId, request);
+        logger.info("updateAdminStatus completed successfully for User: {}", adminUserId);
+        return ResponseEntity.ok(Map.of("message", "Admin status updated successfully."));
+    }
+
+    @PostMapping("/analytics/sendreportemail")
+    public ResponseEntity<Map<String, String>> sendReportEmail(
+            @RequestBody @Valid MonthlyReportRequestDTO request,
+            Principal principal) {
+        String orgAdminEmail = principal.getName();
+        logger.info("Processing sendReportEmail for OrgAdmin: {}", orgAdminEmail);
+        adminAnalyticsService.sendMonthlyReportEmail(request.getMonth(), request.getYear(), orgAdminEmail);
+        logger.info("sendReportEmail completed successfully for OrgAdmin: {}", orgAdminEmail);
+        return ResponseEntity.ok(Map.of("message", "Report email request submitted for " + orgAdminEmail));
+    }
+
+    @GetMapping("/analytics/monthlyreport")
+    public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
+            @RequestParam String month,
+            @RequestParam Integer year) {
+        logger.info("Processing getMonthlyReport for: {}-{}", month, year);
+        MonthlySalesLogDTO report = adminAnalyticsService.getMonthlyReport(month, year);
+        logger.info("getMonthlyReport completed successfully for: {}-{}", month, year);
+        return ResponseEntity.ok(report);
+    }
+}

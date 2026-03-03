@@ -12,6 +12,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.LastModifiedBy;
+import org.hibernate.annotations.TenantId;
 import org.hibernate.annotations.UuidGenerator;
 
 @Getter
@@ -37,6 +38,14 @@ public class AppUser {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "roleid", nullable = false)
     private UserRole role;
+
+    @TenantId
+    @Column(name = "org_id")
+    private UUID orgId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "org_id", insertable = false, updatable = false)
+    private Organization org;
 
     @Column(name = "isactive")
     private Boolean isActive = true;

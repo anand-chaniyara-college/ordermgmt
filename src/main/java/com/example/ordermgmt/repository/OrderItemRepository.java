@@ -1,14 +1,14 @@
 package com.example.ordermgmt.repository;
 
+import com.example.ordermgmt.dto.analytics.ItemSalesReportDTO;
+import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
 import com.example.ordermgmt.entity.OrderItem;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
-
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.OrderItemId> {
@@ -23,7 +23,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.
                         "WHERE FUNCTION('date_part', 'year', o.createdTimestamp) = :year " +
                         "AND FUNCTION('date_part', 'month', o.createdTimestamp) = :month " +
                         "AND o.status.statusName = 'DELIVERED'")
-        com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO getMonthlyReport(
+        MonthlySalesLogDTO getMonthlyReport(
                         @Param("month") int month,
                         @Param("year") int year);
 
@@ -39,7 +39,7 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.
                         "AND FUNCTION('date_part', 'month', o.createdTimestamp) = :month " +
                         "AND o.status.statusName = 'DELIVERED' " +
                         "GROUP BY oi.inventoryItem.itemId, oi.inventoryItem.itemName")
-        java.util.List<com.example.ordermgmt.dto.analytics.ItemSalesReportDTO> getMonthlyItemWiseReport(
+        List<ItemSalesReportDTO> getMonthlyItemWiseReport(
                         @Param("month") int month,
                         @Param("year") int year);
 }
