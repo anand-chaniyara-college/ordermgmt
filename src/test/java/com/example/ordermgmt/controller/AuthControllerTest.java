@@ -57,6 +57,7 @@ class AuthControllerTest {
         requestDTO.setEmail("test@example.com");
         requestDTO.setPassword("password123");
         requestDTO.setRoleName("CUSTOMER");
+        requestDTO.setOrgSubdomain("test");
 
         when(rateLimitingService.allowRequest(anyString(), anyLong(), anyLong())).thenReturn(true);
         doNothing().when(authService).registerUser(any(RegistrationRequestDTO.class));
@@ -77,6 +78,7 @@ class AuthControllerTest {
         requestDTO.setEmail("test@example.com");
         requestDTO.setPassword("password123");
         requestDTO.setRoleName("CUSTOMER");
+        requestDTO.setOrgSubdomain("test");
 
         when(rateLimitingService.allowRequest(anyString(), anyLong(), anyLong())).thenReturn(false);
 
@@ -93,6 +95,7 @@ class AuthControllerTest {
     @Test
     void testLogin_Success() throws Exception {
         LoginRequestDTO loginRequest = new LoginRequestDTO();
+        loginRequest.setOrgSubdomain("test");
         loginRequest.setEmail("test@example.com");
         loginRequest.setPassword("password123");
 
@@ -152,6 +155,7 @@ class AuthControllerTest {
         requestDTO.setEmail("test@example.com");
         requestDTO.setPassword("password123");
         requestDTO.setRoleName("CUSTOMER");
+        requestDTO.setOrgSubdomain("test");
 
         when(rateLimitingService.allowRequest(anyString(), anyLong(), anyLong())).thenReturn(true);
         doThrow(new RuntimeException("DB error")).when(authService).registerUser(any(RegistrationRequestDTO.class));
@@ -165,6 +169,7 @@ class AuthControllerTest {
     @Test
     void testLogin_InternalServerError() throws Exception {
         LoginRequestDTO loginRequest = new LoginRequestDTO();
+        loginRequest.setOrgSubdomain("test");
         loginRequest.setEmail("test@example.com");
         loginRequest.setPassword("password123");
 

@@ -75,7 +75,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @Operation(summary = "Sign In", description = "Log into your account using your email and password to get an access token")
+    @Operation(summary = "Sign In", description = "Log into your account using organization subdomain, email, and password to get an access token")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Login successful", content = @Content(schema = @Schema(implementation = LoginResponseDTO.class))),
             @ApiResponse(responseCode = "401", description = "Invalid credentials", content = @Content)

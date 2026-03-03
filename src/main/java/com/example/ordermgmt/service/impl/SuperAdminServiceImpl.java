@@ -90,16 +90,17 @@ public class SuperAdminServiceImpl implements SuperAdminService {
             throw new InvalidOperationException("orgId is required");
         }
 
-        if (appUserRepository.findByEmail(request.getEmail()).isPresent()) {
-            logger.warn("Skipping createOrgAdmin for User: {} - Email already exists", request.getEmail());
-            throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
-        }
-
         Organization org = organizationRepository.findById(request.getOrgId())
                 .orElseThrow(() -> {
                     logger.warn("Skipping createOrgAdmin for User: {} - Organization not found", request.getEmail());
                     return new ResourceNotFoundException("Organization not found: " + request.getOrgId());
                 });
+
+        if (appUserRepository.existsByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())) {
+            logger.warn("Skipping createOrgAdmin for User: {} - Email already exists in org: {}",
+                    request.getEmail(), org.getOrgId());
+            throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
+        }
 
         UserRole orgAdminRole = userRoleRepository.findByRoleName(ROLE_ORG_ADMIN)
                 .orElseThrow(() -> new ResourceNotFoundException("Role not found: " + ROLE_ORG_ADMIN));

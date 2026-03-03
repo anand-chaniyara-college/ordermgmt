@@ -82,11 +82,6 @@ public class AuthServiceImpl implements AuthService {
     public void registerUser(RegistrationRequestDTO request) {
         logger.info("Processing registerUser for User: {}", request.getEmail());
 
-        if (appUserRepository.findByEmail(request.getEmail()).isPresent()) {
-            logger.warn("Skipping registerUser for User: {} - Email already exists", request.getEmail());
-            throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
-        }
-
         if (!ROLE_CUSTOMER.equalsIgnoreCase(request.getRoleName())) {
             logger.warn("Skipping registerUser for User: {} - Public registration supports CUSTOMER only",
                     request.getEmail());
@@ -109,6 +104,12 @@ public class AuthServiceImpl implements AuthService {
             logger.warn("Skipping registerUser for User: {} - Organization inactive: {}",
                     request.getEmail(), request.getOrgSubdomain());
             throw new OrganizationInactiveException("Organization is inactive: " + request.getOrgSubdomain());
+        }
+
+        if (appUserRepository.existsByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())) {
+            logger.warn("Skipping registerUser for User: {} - Email already exists in org: {}",
+                    request.getEmail(), org.getOrgId());
+            throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
         }
 
         AppUser newUser = new AppUser();
@@ -145,9 +146,22 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public LoginResponseDTO loginUser(LoginRequestDTO request) {
-        logger.info("Processing loginUser for User: {}", request.getEmail());
+        logger.info("Processing loginUser for User: {} in Org Subdomain: {}",
+                request.getEmail(), request.getOrgSubdomain());
 
-        AppUser user = appUserRepository.findByEmail(request.getEmail())
+        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping loginUser for User: {} - Invalid credentials", request.getEmail());
+                    return new InvalidCredentialsException("Invalid credentials");
+                });
+
+        if (!Boolean.TRUE.equals(org.getIsActive())) {
+            logger.warn("Skipping loginUser for User: {} - Organization inactive: {}",
+                    request.getEmail(), request.getOrgSubdomain());
+            throw new OrganizationInactiveException("Organization is inactive: " + request.getOrgSubdomain());
+        }
+
+        AppUser user = appUserRepository.findByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())
                 .orElseThrow(() -> {
                     logger.warn("Skipping loginUser for User: {} - Invalid credentials", request.getEmail());
                     return new InvalidCredentialsException("Invalid credentials");
@@ -167,7 +181,7 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail(),
                 user.getRole().getRoleName(),
                 resolveTokenOrgId(user));
-        String refreshToken = createRefreshToken(user.getEmail());
+        String refreshToken = createRefreshToken(user.getUserId());
 
         logger.info("loginUser completed successfully for User: {}", request.getEmail());
         return new LoginResponseDTO(accessToken, refreshToken, user.getRole().getRoleName(), "Login successful");
@@ -178,8 +192,8 @@ public class AuthServiceImpl implements AuthService {
     public RefreshTokenResponseDTO refreshToken(RefreshTokenRequestDTO request, String accessToken) {
         logger.info("Processing refreshToken");
 
-        String storedEmail = redisTemplate.opsForValue().get(RT_PREFIX + request.getRefreshToken());
-        if (storedEmail == null) {
+        String storedUserId = redisTemplate.opsForValue().get(RT_PREFIX + request.getRefreshToken());
+        if (storedUserId == null) {
             logger.warn("Skipping refreshToken - Token expired or not found");
             throw new InvalidTokenException("Refresh token expired or revoked");
         }
@@ -187,14 +201,22 @@ public class AuthServiceImpl implements AuthService {
         redisTemplate.delete(RT_PREFIX + request.getRefreshToken());
         blacklistAccessToken(accessToken);
 
-        AppUser user = appUserRepository.findByEmail(storedEmail)
+        UUID userId;
+        try {
+            userId = UUID.fromString(storedUserId);
+        } catch (IllegalArgumentException ex) {
+            logger.warn("Skipping refreshToken - Invalid token principal format");
+            throw new InvalidTokenException("Invalid refresh token");
+        }
+
+        AppUser user = appUserRepository.findById(userId)
                 .orElseThrow(() -> {
-                    logger.error("refreshToken failed - User not found for email: {}", storedEmail);
+                    logger.error("refreshToken failed - User not found for id: {}", userId);
                     return new InvalidTokenException("User not found for refresh token");
                 });
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            logger.warn("Skipping refreshToken for User: {} - Account inactive", storedEmail);
+            logger.warn("Skipping refreshToken for User ID: {} - Account inactive", userId);
             throw new AccountInactiveException("User is inactive");
         }
 
@@ -202,9 +224,9 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail(),
                 user.getRole().getRoleName(),
                 resolveTokenOrgId(user));
-        String newRefreshToken = createRefreshToken(user.getEmail());
+        String newRefreshToken = createRefreshToken(user.getUserId());
 
-        logger.info("refreshToken completed successfully for User: {}", storedEmail);
+        logger.info("refreshToken completed successfully for User ID: {}", userId);
         return new RefreshTokenResponseDTO(newAccessToken, newRefreshToken, "Bearer", "Token refreshed successfully");
     }
 
@@ -223,11 +245,11 @@ public class AuthServiceImpl implements AuthService {
         logger.info("logoutUser completed successfully");
     }
 
-    private String createRefreshToken(String email) {
+    private String createRefreshToken(UUID userId) {
         String tokenValue = UUID.randomUUID().toString();
         redisTemplate.opsForValue().set(
                 RT_PREFIX + tokenValue,
-                email,
+                userId.toString(),
                 Duration.ofMillis(refreshExpirationMs));
         return tokenValue;
     }

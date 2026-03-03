@@ -29,7 +29,7 @@ public class AppUser {
     @Column(name = "userid", updatable = false, nullable = false)
     private UUID userId;
 
-    @Column(name = "email", nullable = false, unique = true)
+    @Column(name = "email", nullable = false)
     private String email;
 
     @Column(name = "passwordhash", nullable = false)

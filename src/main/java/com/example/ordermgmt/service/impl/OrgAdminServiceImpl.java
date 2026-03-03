@@ -46,7 +46,7 @@ public class OrgAdminServiceImpl implements OrgAdminService {
 
         AppUser requester = getOrgAdminRequester(requesterEmail);
 
-        if (appUserRepository.findByEmail(request.getEmail()).isPresent()) {
+        if (appUserRepository.existsByOrgIdAndEmailIgnoreCase(requester.getOrgId(), request.getEmail())) {
             logger.warn("Skipping createAdmin for User: {} - Email already exists", request.getEmail());
             throw new UserAlreadyExistsException("Email already exists: " + request.getEmail());
         }

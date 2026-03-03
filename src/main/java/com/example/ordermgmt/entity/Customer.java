@@ -39,7 +39,7 @@ public class Customer {
     @Column(name = "lastname", length = 100)
     private String lastName;
 
-    @Column(name = "contactno", length = 20, unique = true)
+    @Column(name = "contactno", length = 20)
     private String contactNo;
 
     @Column(name = "address", length = 255)

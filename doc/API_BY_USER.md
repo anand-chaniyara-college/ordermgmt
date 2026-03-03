@@ -28,6 +28,7 @@ Responses:
 Request body:
 ```json
 {
+  "orgSubdomain": "test",
   "email": "superadmin@superemail.com",
   "password": "superadminpassword"
 }
