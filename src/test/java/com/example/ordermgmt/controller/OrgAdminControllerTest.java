@@ -4,13 +4,17 @@ import com.example.ordermgmt.dto.CreateAdminRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
 import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
-import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportItemDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportResponseDTO;
 import com.example.ordermgmt.exception.GlobalExceptionHandler;
+import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.service.AdminAnalyticsService;
 import com.example.ordermgmt.service.OrgAdminService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,8 +28,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -162,30 +164,69 @@ class OrgAdminControllerTest {
     }
 
     @Test
-    void testGetMonthlyReport_Success() throws Exception {
-        MonthlySalesLogDTO reportDTO = new MonthlySalesLogDTO();
-        reportDTO.setTotalSoldItems(120L);
-        reportDTO.setTotalRevenue(new BigDecimal("7650.50"));
+    void testGetRevenueReport_Success() throws Exception {
+        LocalDate startDate = LocalDate.parse("2026-03-01");
+        LocalDate endDate = LocalDate.parse("2026-03-09");
 
-        when(adminAnalyticsService.getMonthlyReport("JANUARY", 2025)).thenReturn(reportDTO);
+        RevenueReportItemDTO laptop = new RevenueReportItemDTO(
+                UUID.fromString("c0a8085e-9c9f-1727-819c-9f3aae230001"),
+                "Laptop",
+                new BigDecimal("200.00"),
+                2L,
+                List.of("2026-03-02T14:30:00Z", "2026-03-05T10:00:00Z"));
 
-        mockMvc.perform(get("/api/org-admin/analytics/monthlyreport")
-                        .param("month", "JANUARY")
-                        .param("year", "2025"))
+        RevenueReportResponseDTO reportDTO = new RevenueReportResponseDTO(
+                startDate,
+                endDate,
+                2L,
+                4L,
+                new BigDecimal("400.00"),
+                List.of(laptop));
+
+        when(adminAnalyticsService.getRevenueReport(startDate, endDate, null, null, null)).thenReturn(reportDTO);
+
+        mockMvc.perform(get("/api/org-admin/analytics/revenue-report")
+                        .param("startdate", "2026-03-01")
+                        .param("enddate", "2026-03-09"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalSoldItems").value(120))
-                .andExpect(jsonPath("$.totalRevenue").value(7650.50));
+                .andExpect(jsonPath("$.startDate").value("2026-03-01"))
+                .andExpect(jsonPath("$.endDate").value("2026-03-09"))
+                .andExpect(jsonPath("$.totalSoldItems").value(2))
+                .andExpect(jsonPath("$.totalSoldQty").value(4))
+                .andExpect(jsonPath("$.totalRevenue").value(400.00))
+                .andExpect(jsonPath("$.items[0].itemName").value("Laptop"))
+                .andExpect(jsonPath("$.items[0].soldQty").value(2))
+                .andExpect(jsonPath("$.items[0].soldOn[0]").value("2026-03-02T14:30:00Z"));
 
-        verify(adminAnalyticsService, times(1)).getMonthlyReport("JANUARY", 2025);
+        verify(adminAnalyticsService, times(1)).getRevenueReport(startDate, endDate, null, null, null);
     }
 
     @Test
-    void testGetMonthlyReport_BadRequest_MissingYear() throws Exception {
-        mockMvc.perform(get("/api/org-admin/analytics/monthlyreport")
-                        .param("month", "JANUARY"))
+    void testGetRevenueReport_BadRequest_MissingEndDate() throws Exception {
+        mockMvc.perform(get("/api/org-admin/analytics/revenue-report")
+                        .param("startdate", "2026-03-01"))
                 .andExpect(status().isBadRequest());
 
-        verify(adminAnalyticsService, never()).getMonthlyReport(anyString(), anyInt());
+        verify(adminAnalyticsService, never()).getRevenueReport(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void testGetRevenueReport_BadRequest_InvalidRange() throws Exception {
+        LocalDate startDate = LocalDate.parse("2026-03-09");
+        LocalDate endDate = LocalDate.parse("2026-03-01");
+        when(adminAnalyticsService.getRevenueReport(startDate, endDate, "Laptop", 0, 10))
+                .thenThrow(new InvalidOperationException("startDate must be before endDate"));
+
+        mockMvc.perform(get("/api/org-admin/analytics/revenue-report")
+                        .param("startdate", "2026-03-09")
+                        .param("enddate", "2026-03-01")
+                        .param("itemname", "Laptop")
+                        .param("page", "0")
+                        .param("size", "10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("startDate must be before endDate"));
+
+        verify(adminAnalyticsService, times(1)).getRevenueReport(startDate, endDate, "Laptop", 0, 10);
     }
 
     @Test

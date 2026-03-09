@@ -1,18 +1,33 @@
 package com.example.ordermgmt.service.impl;
 
 import com.example.ordermgmt.dto.analytics.ItemSalesReportDTO;
+import com.example.ordermgmt.dto.analytics.ItemSoldOnRowDTO;
 import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportItemAggregateDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportItemDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportResponseDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportSummaryDTO;
 import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.repository.OrderItemRepository;
 import com.example.ordermgmt.service.AdminAnalyticsService;
 import com.example.ordermgmt.service.EmailService;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.Month;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-
-import java.time.Month;
-import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -20,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
 
     private static final Logger logger = LoggerFactory.getLogger(AdminAnalyticsServiceImpl.class);
+    private static final int DEFAULT_PAGE = 0;
+    private static final int DEFAULT_SIZE = 20;
+    private static final DateTimeFormatter SOLD_ON_FORMATTER = DateTimeFormatter.ISO_INSTANT;
     private final OrderItemRepository orderItemRepository;
     private final EmailService emailService;
 
@@ -45,6 +63,62 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public RevenueReportResponseDTO getRevenueReport(
+            LocalDate startDate,
+            LocalDate endDate,
+            String itemName,
+            Integer page,
+            Integer size) {
+        logger.info("Processing getRevenueReport for range: {} to {}", startDate, endDate);
+
+        validateDateRange(startDate, endDate);
+        int pageNumber = resolvePage(page);
+        int pageSize = resolveSize(size);
+        String normalizedItemName = normalizeItemName(itemName);
+        boolean hasItemNameFilter = normalizedItemName != null;
+
+        LocalDateTime startDateTime = startDate.atStartOfDay();
+        LocalDateTime endDateTimeExclusive = endDate.plusDays(1).atStartOfDay();
+
+        RevenueReportSummaryDTO summary = hasItemNameFilter
+                ? orderItemRepository.getRevenueReportSummaryByItemName(
+                        startDateTime,
+                        endDateTimeExclusive,
+                        normalizedItemName)
+                : orderItemRepository.getRevenueReportSummary(
+                        startDateTime,
+                        endDateTimeExclusive);
+
+        Page<RevenueReportItemAggregateDTO> itemPage = hasItemNameFilter
+                ? orderItemRepository.getRevenueReportItemsByItemName(
+                        startDateTime,
+                        endDateTimeExclusive,
+                        normalizedItemName,
+                        PageRequest.of(pageNumber, pageSize))
+                : orderItemRepository.getRevenueReportItems(
+                        startDateTime,
+                        endDateTimeExclusive,
+                        PageRequest.of(pageNumber, pageSize));
+
+        List<RevenueReportItemDTO> items = buildRevenueItems(
+                itemPage.getContent(),
+                startDateTime,
+                endDateTimeExclusive,
+                normalizedItemName,
+                hasItemNameFilter);
+
+        logger.info("getRevenueReport completed successfully for range: {} to {}", startDate, endDate);
+        return new RevenueReportResponseDTO(
+                startDate,
+                endDate,
+                summary != null ? summary.getTotalSoldItems() : 0L,
+                summary != null ? summary.getTotalSoldQty() : 0L,
+                summary != null ? summary.getTotalRevenue() : java.math.BigDecimal.ZERO,
+                items);
+    }
+
+    @Override
     public void sendMonthlyReportEmail(String month, int year, String recipientEmail) {
         logger.info("Processing sendMonthlyReportEmail for Admin: {}", recipientEmail);
         validateAndGetMonthIndex(month);
@@ -54,6 +128,88 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
 
         emailService.sendEmail(recipientEmail, "Monthly Sales Report: " + month + " " + year, emailBody);
         logger.info("sendMonthlyReportEmail completed successfully for Admin: {}", recipientEmail);
+    }
+
+    private List<RevenueReportItemDTO> buildRevenueItems(
+            List<RevenueReportItemAggregateDTO> aggregatedItems,
+            LocalDateTime startDateTime,
+            LocalDateTime endDateTimeExclusive,
+            String itemName,
+            boolean hasItemNameFilter) {
+        if (aggregatedItems == null || aggregatedItems.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> itemIds = aggregatedItems.stream()
+                .map(RevenueReportItemAggregateDTO::getItemId)
+                .toList();
+
+        Map<UUID, LinkedHashSet<String>> soldOnMap = (hasItemNameFilter
+                ? orderItemRepository.getItemSoldOnTimestampsByItemName(
+                        startDateTime, endDateTimeExclusive, itemName, itemIds)
+                : orderItemRepository.getItemSoldOnTimestamps(
+                        startDateTime, endDateTimeExclusive, itemIds))
+                .stream()
+                .collect(Collectors.groupingBy(
+                        ItemSoldOnRowDTO::getItemId,
+                        Collectors.mapping(
+                                row -> formatSoldOn(row.getSoldOn()),
+                                Collectors.toCollection(LinkedHashSet::new))));
+
+        List<RevenueReportItemDTO> items = new ArrayList<>(aggregatedItems.size());
+        for (RevenueReportItemAggregateDTO aggregatedItem : aggregatedItems) {
+            LinkedHashSet<String> soldOn = soldOnMap.getOrDefault(aggregatedItem.getItemId(), new LinkedHashSet<>());
+            items.add(new RevenueReportItemDTO(
+                    aggregatedItem.getItemId(),
+                    aggregatedItem.getItemName(),
+                    aggregatedItem.getTotalRevenue(),
+                    aggregatedItem.getSoldQty(),
+                    new ArrayList<>(soldOn)));
+        }
+        return items;
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new InvalidOperationException("Both startDate and endDate are required");
+        }
+        if (!startDate.isBefore(endDate)) {
+            throw new InvalidOperationException("startDate must be before endDate");
+        }
+    }
+
+    private int resolvePage(Integer page) {
+        if (page == null) {
+            return DEFAULT_PAGE;
+        }
+        if (page < 0) {
+            throw new InvalidOperationException("page must be 0 or greater");
+        }
+        return page;
+    }
+
+    private int resolveSize(Integer size) {
+        if (size == null) {
+            return DEFAULT_SIZE;
+        }
+        if (size <= 0) {
+            throw new InvalidOperationException("size must be greater than 0");
+        }
+        return size;
+    }
+
+    private String normalizeItemName(String itemName) {
+        if (itemName == null || itemName.isBlank()) {
+            return null;
+        }
+        return itemName.trim();
+    }
+
+    private String formatSoldOn(LocalDateTime timestamp) {
+        if (timestamp == null) {
+            return null;
+        }
+        return timestamp.atOffset(ZoneOffset.UTC).format(SOLD_ON_FORMATTER);
     }
 
     private int validateAndGetMonthIndex(String month) {

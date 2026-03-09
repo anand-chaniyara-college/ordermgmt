@@ -4,11 +4,13 @@ import com.example.ordermgmt.dto.CreateAdminRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
 import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
-import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportResponseDTO;
 import com.example.ordermgmt.service.AdminAnalyticsService;
 import com.example.ordermgmt.service.OrgAdminService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import java.security.Principal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -16,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -81,13 +84,16 @@ public class OrgAdminController {
         return ResponseEntity.ok(Map.of("message", "Report email request submitted for " + orgAdminEmail));
     }
 
-    @GetMapping("/analytics/monthlyreport")
-    public ResponseEntity<MonthlySalesLogDTO> getMonthlyReport(
-            @RequestParam String month,
-            @RequestParam Integer year) {
-        logger.info("Processing getMonthlyReport for: {}-{}", month, year);
-        MonthlySalesLogDTO report = adminAnalyticsService.getMonthlyReport(month, year);
-        logger.info("getMonthlyReport completed successfully for: {}-{}", month, year);
+    @GetMapping("/analytics/revenue-report")
+    public ResponseEntity<RevenueReportResponseDTO> getRevenueReport(
+            @RequestParam("startdate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("enddate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "itemname", required = false) String itemName,
+            @RequestParam(value = "page", required = false) @Min(value = 0, message = "page must be 0 or greater") Integer page,
+            @RequestParam(value = "size", required = false) @Min(value = 1, message = "size must be greater than 0") Integer size) {
+        logger.info("Processing getRevenueReport for: {} to {}", startDate, endDate);
+        RevenueReportResponseDTO report = adminAnalyticsService.getRevenueReport(startDate, endDate, itemName, page, size);
+        logger.info("getRevenueReport completed successfully for: {} to {}", startDate, endDate);
         return ResponseEntity.ok(report);
     }
 }
