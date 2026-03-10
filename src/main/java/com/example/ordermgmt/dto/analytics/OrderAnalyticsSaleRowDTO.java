@@ -9,8 +9,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemSoldOnRowDTO {
+public class OrderAnalyticsSaleRowDTO {
     private UUID itemId;
+    private String orderStatus;
     private Long soldQty;
     private LocalDateTime soldOn;
 }

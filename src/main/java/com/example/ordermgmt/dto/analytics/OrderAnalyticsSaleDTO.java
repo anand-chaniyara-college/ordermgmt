@@ -1,7 +1,6 @@
 package com.example.ordermgmt.dto.analytics;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,8 +8,9 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ItemSoldOnRowDTO {
-    private UUID itemId;
+@Schema(description = "Per-order status sale details")
+public class OrderAnalyticsSaleDTO {
+    private String orderStatus;
     private Long soldQty;
-    private LocalDateTime soldOn;
+    private String soldOn;
 }

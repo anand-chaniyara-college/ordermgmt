@@ -1,6 +1,7 @@
 package com.example.ordermgmt.service;
 
 import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
+import com.example.ordermgmt.dto.analytics.OrderAnalyticsResponseDTO;
 import com.example.ordermgmt.dto.analytics.RevenueReportResponseDTO;
 import java.time.LocalDate;
 
@@ -11,6 +12,14 @@ public interface AdminAnalyticsService {
             LocalDate startDate,
             LocalDate endDate,
             String itemName,
+            Integer page,
+            Integer size);
+
+    OrderAnalyticsResponseDTO getOrderAnalytics(
+            LocalDate startDate,
+            LocalDate endDate,
+            String itemName,
+            String orderStatus,
             Integer page,
             Integer size);
 

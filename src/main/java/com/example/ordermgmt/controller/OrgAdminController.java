@@ -4,7 +4,9 @@ import com.example.ordermgmt.dto.CreateAdminRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
 import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
+import com.example.ordermgmt.dto.analytics.OrderAnalyticsResponseDTO;
 import com.example.ordermgmt.dto.analytics.RevenueReportResponseDTO;
+import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.service.AdminAnalyticsService;
 import com.example.ordermgmt.service.OrgAdminService;
 import jakarta.validation.Valid;
@@ -95,5 +97,64 @@ public class OrgAdminController {
         RevenueReportResponseDTO report = adminAnalyticsService.getRevenueReport(startDate, endDate, itemName, page, size);
         logger.info("getRevenueReport completed successfully for: {} to {}", startDate, endDate);
         return ResponseEntity.ok(report);
+    }
+
+    @GetMapping("/analytics/order-analytics")
+    public ResponseEntity<OrderAnalyticsResponseDTO> getOrderAnalytics(
+            @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(value = "startdate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateLegacy,
+            @RequestParam(value = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "enddate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDateLegacy,
+            @RequestParam(value = "itemName", required = false) String itemName,
+            @RequestParam(value = "itemname", required = false) String itemNameLegacy,
+            @RequestParam(value = "orderStatus", required = false) String orderStatus,
+            @RequestParam(value = "orderstatus", required = false) String orderStatusLegacy,
+            @RequestParam(value = "page", required = false) @Min(value = 0, message = "page must be 0 or greater") Integer page,
+            @RequestParam(value = "size", required = false) @Min(value = 1, message = "size must be greater than 0") Integer size) {
+        LocalDate resolvedStartDate = resolveDateParam("startDate", startDate, "startdate", startDateLegacy);
+        LocalDate resolvedEndDate = resolveDateParam("endDate", endDate, "enddate", endDateLegacy);
+        String resolvedItemName = resolveStringParam("itemName", itemName, "itemname", itemNameLegacy);
+        String resolvedOrderStatus = resolveStringParam("orderStatus", orderStatus, "orderstatus", orderStatusLegacy);
+
+        logger.info("Processing getOrderAnalytics for: {} to {}", resolvedStartDate, resolvedEndDate);
+        OrderAnalyticsResponseDTO report = adminAnalyticsService.getOrderAnalytics(
+                resolvedStartDate, resolvedEndDate, resolvedItemName, resolvedOrderStatus, page, size);
+        logger.info("getOrderAnalytics completed successfully for: {} to {}", resolvedStartDate, resolvedEndDate);
+        return ResponseEntity.ok(report);
+    }
+
+    private LocalDate resolveDateParam(
+            String primaryName,
+            LocalDate primaryValue,
+            String legacyName,
+            LocalDate legacyValue) {
+        if (primaryValue != null && legacyValue != null && !primaryValue.equals(legacyValue)) {
+            throw new InvalidOperationException(
+                    "Conflicting values for parameters '" + primaryName + "' and '" + legacyName + "'");
+        }
+        return primaryValue != null ? primaryValue : legacyValue;
+    }
+
+    private String resolveStringParam(
+            String primaryName,
+            String primaryValue,
+            String legacyName,
+            String legacyValue) {
+        String trimmedPrimary = normalizeQueryParam(primaryValue);
+        String trimmedLegacy = normalizeQueryParam(legacyValue);
+        if (trimmedPrimary != null && trimmedLegacy != null
+                && !trimmedPrimary.equalsIgnoreCase(trimmedLegacy)) {
+            throw new InvalidOperationException(
+                    "Conflicting values for parameters '" + primaryName + "' and '" + legacyName + "'");
+        }
+        return trimmedPrimary != null ? trimmedPrimary : trimmedLegacy;
+    }
+
+    private String normalizeQueryParam(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isBlank() ? null : trimmed;
     }
 }

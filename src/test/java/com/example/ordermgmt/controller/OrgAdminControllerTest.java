@@ -4,8 +4,12 @@ import com.example.ordermgmt.dto.CreateAdminRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
 import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
+import com.example.ordermgmt.dto.analytics.OrderAnalyticsItemDTO;
+import com.example.ordermgmt.dto.analytics.OrderAnalyticsResponseDTO;
+import com.example.ordermgmt.dto.analytics.OrderAnalyticsSaleDTO;
 import com.example.ordermgmt.dto.analytics.RevenueReportItemDTO;
 import com.example.ordermgmt.dto.analytics.RevenueReportResponseDTO;
+import com.example.ordermgmt.dto.analytics.RevenueReportSaleDTO;
 import com.example.ordermgmt.exception.GlobalExceptionHandler;
 import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.service.AdminAnalyticsService;
@@ -172,8 +176,9 @@ class OrgAdminControllerTest {
                 UUID.fromString("c0a8085e-9c9f-1727-819c-9f3aae230001"),
                 "Laptop",
                 new BigDecimal("200.00"),
-                2L,
-                List.of("2026-03-02T14:30:00Z", "2026-03-05T10:00:00Z"));
+                List.of(
+                        new RevenueReportSaleDTO(1L, "2026-03-02T14:30:00Z"),
+                        new RevenueReportSaleDTO(1L, "2026-03-05T10:00:00Z")));
 
         RevenueReportResponseDTO reportDTO = new RevenueReportResponseDTO(
                 startDate,
@@ -195,10 +200,51 @@ class OrgAdminControllerTest {
                 .andExpect(jsonPath("$.totalSoldQty").value(4))
                 .andExpect(jsonPath("$.totalRevenue").value(400.00))
                 .andExpect(jsonPath("$.items[0].itemName").value("Laptop"))
-                .andExpect(jsonPath("$.items[0].soldQty").value(2))
-                .andExpect(jsonPath("$.items[0].soldOn[0]").value("2026-03-02T14:30:00Z"));
+                .andExpect(jsonPath("$.items[0].sales[0].soldQty").value(1))
+                .andExpect(jsonPath("$.items[0].sales[0].soldOn").value("2026-03-02T14:30:00Z"));
 
         verify(adminAnalyticsService, times(1)).getRevenueReport(startDate, endDate, null, null, null);
+    }
+
+    @Test
+    void testGetOrderAnalytics_Success() throws Exception {
+        LocalDate startDate = LocalDate.parse("2026-02-01");
+        LocalDate endDate = LocalDate.parse("2026-03-09");
+
+        OrderAnalyticsItemDTO laptop = new OrderAnalyticsItemDTO(
+                UUID.fromString("c0a8085e-9c98-1b65-819c-988b78320003"),
+                "Laptop",
+                List.of(
+                        new OrderAnalyticsSaleDTO("DELIVERED", 1L, "2026-02-27T18:58:41.298783Z"),
+                        new OrderAnalyticsSaleDTO("CANCELED", 1L, "2026-03-09T16:55:51.009018Z")));
+
+        OrderAnalyticsResponseDTO reportDTO = new OrderAnalyticsResponseDTO(
+                startDate,
+                endDate,
+                1L,
+                2L,
+                List.of(laptop));
+
+        when(adminAnalyticsService.getOrderAnalytics(startDate, endDate, "laptop", "delivered, canceled", null, null))
+                .thenReturn(reportDTO);
+
+        mockMvc.perform(get("/api/org-admin/analytics/order-analytics")
+                        .param("startdate", "2026-02-01")
+                        .param("enddate", "2026-03-09")
+                        .param("itemname", "laptop")
+                        .param("orderstatus", "delivered, canceled"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.startDate").value("2026-02-01"))
+                .andExpect(jsonPath("$.endDate").value("2026-03-09"))
+                .andExpect(jsonPath("$.totalSoldItems").value(1))
+                .andExpect(jsonPath("$.totalSoldQty").value(2))
+                .andExpect(jsonPath("$.items[0].itemName").value("Laptop"))
+                .andExpect(jsonPath("$.items[0].sales[0].orderStatus").value("DELIVERED"))
+                .andExpect(jsonPath("$.items[0].sales[0].soldQty").value(1))
+                .andExpect(jsonPath("$.items[0].sales[0].soldOn").value("2026-02-27T18:58:41.298783Z"));
+
+        verify(adminAnalyticsService, times(1))
+                .getOrderAnalytics(startDate, endDate, "laptop", "delivered, canceled", null, null);
     }
 
     @Test
