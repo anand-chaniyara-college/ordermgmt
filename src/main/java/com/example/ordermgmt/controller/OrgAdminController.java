@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.Parameter;
 
 @RestController
 @RequestMapping("/api/org-admin")
@@ -93,8 +94,8 @@ public class OrgAdminController {
             @RequestParam("startdate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam("enddate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(value = "itemname", required = false) String itemName,
-            @io.swagger.v3.oas.annotations.Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
-            @io.swagger.v3.oas.annotations.Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
+            @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
 
         if (page != null && size != null) {
             logger.info("Processing getRevenueReport (Page) for range: {} to {}", startDate, endDate);
@@ -117,8 +118,8 @@ public class OrgAdminController {
             @RequestParam("enddate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(value = "itemname", required = false) String itemName,
             @RequestParam(value = "orderstatus", required = false) String orderStatus,
-            @io.swagger.v3.oas.annotations.Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
-            @io.swagger.v3.oas.annotations.Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
+            @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
 
         if (page != null && size != null) {
             logger.info("Processing getOrderAnalytics (Page) for range: {} to {}", startDate, endDate);
