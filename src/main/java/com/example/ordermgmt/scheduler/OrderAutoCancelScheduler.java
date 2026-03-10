@@ -22,7 +22,7 @@ import java.util.List;
 public class OrderAutoCancelScheduler {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderAutoCancelScheduler.class);
-    private static final int STALE_MINUTES = 15;
+    private static final int STALE_MINUTES = 60;
     private static final long SCHEDULE_INTERVAL_MS = 60_000L;
     private static final String PENDING_STATUS = "PENDING";
 
