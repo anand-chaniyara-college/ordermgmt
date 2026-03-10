@@ -56,7 +56,6 @@
   - create/list admins
   - admin status update
   - send monthly report email
-  - view monthly report
 
 ### Functional Hardening (Completed)
 - [x] Custom `@Query` audit done for tenant safety
@@ -85,7 +84,6 @@
 - `POST /api/org-admin/admins`
 - `GET /api/org-admin/admins`
 - `PATCH /api/org-admin/admins/{id}/status`
-- `GET /api/org-admin/analytics/monthlyreport`
 - `POST /api/org-admin/analytics/sendreportemail`
 
 ### ADMIN

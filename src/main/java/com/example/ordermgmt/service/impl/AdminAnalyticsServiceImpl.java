@@ -82,13 +82,10 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
             LocalDate startDate,
             LocalDate endDate,
             String itemName,
-            Integer page,
-            Integer size) {
+            org.springframework.data.domain.Pageable pageable) {
         logger.info("Processing getRevenueReport for range: {} to {}", startDate, endDate);
 
         validateDateRange(startDate, endDate);
-        int pageNumber = resolvePage(page);
-        int pageSize = resolveSize(size);
         List<String> itemNameFilters = parseItemNameFilters(itemName);
         boolean hasItemNameFilter = !itemNameFilters.isEmpty();
         boolean isMultiFilter = itemNameFilters.size() > 1;
@@ -110,7 +107,9 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                     .toList();
 
             summary = buildSummaryFromAggregates(allAggregatedItems);
-            pagedAggregatedItems = paginateAggregates(allAggregatedItems, pageNumber, pageSize);
+            pagedAggregatedItems = pageable != null && pageable.isPaged()
+                    ? paginateAggregates(allAggregatedItems, pageable.getPageNumber(), pageable.getPageSize())
+                    : allAggregatedItems;
         } else {
             summary = hasItemNameFilter
                     ? orderItemRepository.getRevenueReportSummaryByItemName(
@@ -126,11 +125,11 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                             startDateTime,
                             endDateTimeExclusive,
                             singleItemFilter,
-                            PageRequest.of(pageNumber, pageSize))
+                            pageable != null ? pageable : org.springframework.data.domain.Pageable.unpaged())
                     : orderItemRepository.getRevenueReportItems(
                             startDateTime,
                             endDateTimeExclusive,
-                            PageRequest.of(pageNumber, pageSize));
+                            pageable != null ? pageable : org.springframework.data.domain.Pageable.unpaged());
             pagedAggregatedItems = itemPage.getContent();
         }
 
@@ -158,12 +157,10 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
             LocalDate endDate,
             String itemName,
             String orderStatus,
-            Integer page,
-            Integer size) {
+            org.springframework.data.domain.Pageable pageable) {
         logger.info("Processing getOrderAnalytics for range: {} to {}", startDate, endDate);
 
         validateOptionalDateRange(startDate, endDate);
-        PaginationRequest pagination = resolvePagination(page, size);
         List<String> itemNameFilters = parseItemNameFilters(itemName);
         boolean hasItemNameFilter = !itemNameFilters.isEmpty();
         boolean isMultiItemFilter = itemNameFilters.size() > 1;
@@ -211,8 +208,8 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                 .mapToLong(Long::longValue)
                 .sum();
 
-        List<RevenueReportItemAggregateDTO> pagedItems = pagination.enabled()
-                ? paginateAggregates(aggregatedItems, pagination.page(), pagination.size())
+        List<RevenueReportItemAggregateDTO> pagedItems = pageable != null && pageable.isPaged()
+                ? paginateAggregates(aggregatedItems, pageable.getPageNumber(), pageable.getPageSize())
                 : aggregatedItems;
 
         Map<UUID, List<OrderAnalyticsSaleDTO>> salesMap = buildOrderAnalyticsSalesMap(
@@ -269,12 +266,12 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                         startDateTime, endDateTimeExclusive, itemName, itemIds)
                 : orderItemRepository.getItemSoldOnTimestamps(
                         startDateTime, endDateTimeExclusive, itemIds))
-                        .stream()
-                        .collect(Collectors.groupingBy(
-                                ItemSoldOnRowDTO::getItemId,
-                                Collectors.mapping(
-                                        this::toRevenueSale,
-                                        Collectors.toList())));
+                .stream()
+                .collect(Collectors.groupingBy(
+                        ItemSoldOnRowDTO::getItemId,
+                        Collectors.mapping(
+                                this::toRevenueSale,
+                                Collectors.toList())));
 
         List<RevenueReportItemDTO> items = new ArrayList<>(aggregatedItems.size());
         for (RevenueReportItemAggregateDTO aggregatedItem : aggregatedItems) {
@@ -285,35 +282,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                     salesMap.getOrDefault(aggregatedItem.getItemId(), List.of())));
         }
         return items;
-    }
-
-    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
-        if (startDate == null || endDate == null) {
-            throw new InvalidOperationException("Both startDate and endDate are required");
-        }
-        if (!startDate.isBefore(endDate)) {
-            throw new InvalidOperationException("startDate must be before endDate");
-        }
-    }
-
-    private int resolvePage(Integer page) {
-        if (page == null) {
-            return DEFAULT_PAGE;
-        }
-        if (page < 0) {
-            throw new InvalidOperationException("page must be 0 or greater");
-        }
-        return page;
-    }
-
-    private int resolveSize(Integer size) {
-        if (size == null) {
-            return DEFAULT_SIZE;
-        }
-        if (size <= 0) {
-            throw new InvalidOperationException("size must be greater than 0");
-        }
-        return size;
     }
 
     private String normalizeItemName(String itemName) {
@@ -520,20 +488,13 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                         startDateTime, endDateTimeExclusive, itemName);
     }
 
-    private PaginationRequest resolvePagination(Integer page, Integer size) {
-        if (page != null && page < 0) {
-            throw new InvalidOperationException("page must be 0 or greater");
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            throw new InvalidOperationException("Both startDate and endDate are required");
         }
-        if (size != null && size <= 0) {
-            throw new InvalidOperationException("size must be greater than 0");
+        if (!startDate.isBefore(endDate)) {
+            throw new InvalidOperationException("startDate must be before endDate");
         }
-        if (page != null && size != null) {
-            return new PaginationRequest(true, page, size);
-        }
-        return new PaginationRequest(false, 0, 0);
-    }
-
-    private record PaginationRequest(boolean enabled, int page, int size) {
     }
 
     private int validateAndGetMonthIndex(String month) {

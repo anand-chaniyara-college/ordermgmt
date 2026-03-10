@@ -18,9 +18,11 @@ import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -91,70 +93,46 @@ public class OrgAdminController {
             @RequestParam("startdate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam("enddate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(value = "itemname", required = false) String itemName,
-            @RequestParam(value = "page", required = false) @Min(value = 0, message = "page must be 0 or greater") Integer page,
-            @RequestParam(value = "size", required = false) @Min(value = 1, message = "size must be greater than 0") Integer size) {
-        logger.info("Processing getRevenueReport for: {} to {}", startDate, endDate);
-        RevenueReportResponseDTO report = adminAnalyticsService.getRevenueReport(startDate, endDate, itemName, page, size);
-        logger.info("getRevenueReport completed successfully for: {} to {}", startDate, endDate);
+            @io.swagger.v3.oas.annotations.Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @io.swagger.v3.oas.annotations.Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
+
+        if (page != null && size != null) {
+            logger.info("Processing getRevenueReport (Page) for range: {} to {}", startDate, endDate);
+            Pageable pageable = PageRequest.of(page, size);
+            RevenueReportResponseDTO report = adminAnalyticsService.getRevenueReport(startDate, endDate, itemName,
+                    pageable);
+            logger.info("getRevenueReport (Page) completed successfully for range: {} to {}", startDate, endDate);
+            return ResponseEntity.ok(report);
+        }
+
+        logger.info("Processing getRevenueReport for range: {} to {}", startDate, endDate);
+        RevenueReportResponseDTO report = adminAnalyticsService.getRevenueReport(startDate, endDate, itemName, null);
+        logger.info("getRevenueReport completed successfully for range: {} to {}", startDate, endDate);
         return ResponseEntity.ok(report);
     }
 
     @GetMapping("/analytics/order-analytics")
     public ResponseEntity<OrderAnalyticsResponseDTO> getOrderAnalytics(
-            @RequestParam(value = "startDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(value = "startdate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDateLegacy,
-            @RequestParam(value = "endDate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
-            @RequestParam(value = "enddate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDateLegacy,
-            @RequestParam(value = "itemName", required = false) String itemName,
-            @RequestParam(value = "itemname", required = false) String itemNameLegacy,
-            @RequestParam(value = "orderStatus", required = false) String orderStatus,
-            @RequestParam(value = "orderstatus", required = false) String orderStatusLegacy,
-            @RequestParam(value = "page", required = false) @Min(value = 0, message = "page must be 0 or greater") Integer page,
-            @RequestParam(value = "size", required = false) @Min(value = 1, message = "size must be greater than 0") Integer size) {
-        LocalDate resolvedStartDate = resolveDateParam("startDate", startDate, "startdate", startDateLegacy);
-        LocalDate resolvedEndDate = resolveDateParam("endDate", endDate, "enddate", endDateLegacy);
-        String resolvedItemName = resolveStringParam("itemName", itemName, "itemname", itemNameLegacy);
-        String resolvedOrderStatus = resolveStringParam("orderStatus", orderStatus, "orderstatus", orderStatusLegacy);
+            @RequestParam("startdate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam("enddate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "itemname", required = false) String itemName,
+            @RequestParam(value = "orderstatus", required = false) String orderStatus,
+            @io.swagger.v3.oas.annotations.Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,
+            @io.swagger.v3.oas.annotations.Parameter(description = "Page size") @RequestParam(required = false) Integer size) {
 
-        logger.info("Processing getOrderAnalytics for: {} to {}", resolvedStartDate, resolvedEndDate);
-        OrderAnalyticsResponseDTO report = adminAnalyticsService.getOrderAnalytics(
-                resolvedStartDate, resolvedEndDate, resolvedItemName, resolvedOrderStatus, page, size);
-        logger.info("getOrderAnalytics completed successfully for: {} to {}", resolvedStartDate, resolvedEndDate);
+        if (page != null && size != null) {
+            logger.info("Processing getOrderAnalytics (Page) for range: {} to {}", startDate, endDate);
+            Pageable pageable = PageRequest.of(page, size);
+            OrderAnalyticsResponseDTO report = adminAnalyticsService.getOrderAnalytics(startDate, endDate, itemName,
+                    orderStatus, pageable);
+            logger.info("getOrderAnalytics (Page) completed successfully for range: {} to {}", startDate, endDate);
+            return ResponseEntity.ok(report);
+        }
+
+        logger.info("Processing getOrderAnalytics for range: {} to {}", startDate, endDate);
+        OrderAnalyticsResponseDTO report = adminAnalyticsService.getOrderAnalytics(startDate, endDate, itemName,
+                orderStatus, null);
+        logger.info("getOrderAnalytics completed successfully for range: {} to {}", startDate, endDate);
         return ResponseEntity.ok(report);
-    }
-
-    private LocalDate resolveDateParam(
-            String primaryName,
-            LocalDate primaryValue,
-            String legacyName,
-            LocalDate legacyValue) {
-        if (primaryValue != null && legacyValue != null && !primaryValue.equals(legacyValue)) {
-            throw new InvalidOperationException(
-                    "Conflicting values for parameters '" + primaryName + "' and '" + legacyName + "'");
-        }
-        return primaryValue != null ? primaryValue : legacyValue;
-    }
-
-    private String resolveStringParam(
-            String primaryName,
-            String primaryValue,
-            String legacyName,
-            String legacyValue) {
-        String trimmedPrimary = normalizeQueryParam(primaryValue);
-        String trimmedLegacy = normalizeQueryParam(legacyValue);
-        if (trimmedPrimary != null && trimmedLegacy != null
-                && !trimmedPrimary.equalsIgnoreCase(trimmedLegacy)) {
-            throw new InvalidOperationException(
-                    "Conflicting values for parameters '" + primaryName + "' and '" + legacyName + "'");
-        }
-        return trimmedPrimary != null ? trimmedPrimary : trimmedLegacy;
-    }
-
-    private String normalizeQueryParam(String value) {
-        if (value == null) {
-            return null;
-        }
-        String trimmed = value.trim();
-        return trimmed.isBlank() ? null : trimmed;
     }
 }

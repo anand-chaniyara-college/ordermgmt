@@ -261,30 +261,6 @@ Response (`200`):
 }
 ```
 
-### GET `/api/org-admin/analytics/monthlyreport?month=february&year=2026`
-Response (`200`):
-```json
-{
-  "totalSoldItems": 10,
-  "totalRevenue": 500.00,
-  "items": [
-    {
-      "itemId": "...",
-      "itemName": "Item 1",
-      "totalSoldItems": 5,
-      "totalRevenue": 250.00
-    }
-  ]
-}
-```
-
-No data response (`404`):
-```json
-{
-  "error": "Resource Not Found",
-  "message": "No records found for FEBRUARY 2026"
-}
-```
 
 ### POST `/api/org-admin/analytics/sendreportemail`
 Request body:
@@ -316,7 +292,7 @@ Header: `Authorization: Bearer <ADMIN token>`
 - `POST /api/admin/inventory/addstock`
 - `PUT /api/admin/inventory`
 - `DELETE /api/admin/inventory/{ids}`
-- `GET /api/admin/analytics/monthlyreport`
+
 
 Note: `POST /api/admin/analytics/sendreportemail` is intentionally removed. Report email is org-admin-only.
 
