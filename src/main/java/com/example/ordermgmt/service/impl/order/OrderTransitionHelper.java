@@ -12,7 +12,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.ordermgmt.event.EmailDispatchEvent;
 import java.util.UUID;
 
 /**
@@ -31,6 +32,7 @@ public class OrderTransitionHelper {
     private final OrderValidatorImpl orderValidator;
     private final OrderInventoryManagerImpl orderInventoryManager;
     private final OrderMapperImpl orderMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Perform a status transition for a single order in its own transaction.
@@ -60,6 +62,20 @@ public class OrderTransitionHelper {
 
         logger.info("updateOrderInternal completed successfully for Order: {} ({} -> {})",
                 orderId, currentStatus, nextStatus);
+
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                order.getCustomer().getAppUser().getEmail(),
+                "Order Status Update: " + nextStatus.name(),
+                "order-status",
+                java.util.Map.of(
+                        "name", order.getCustomer().getFirstName() != null
+                                ? order.getCustomer().getFirstName() + (order.getCustomer().getLastName() != null
+                                        ? " " + order.getCustomer().getLastName()
+                                        : "")
+                                : order.getCustomer().getAppUser().getEmail(),
+                        "orderId", order.getOrderId(),
+                        "status", nextStatus.name())));
+
         return orderMapper.convertToDTO(order);
     }
 

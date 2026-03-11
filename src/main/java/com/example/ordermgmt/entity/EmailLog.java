@@ -39,7 +39,7 @@ public class EmailLog {
     private UUID orgId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "org_id", insertable = false)
+    @JoinColumn(name = "org_id", insertable = false, updatable = false)
     private Organization org;
 
     @CreatedBy

@@ -15,6 +15,8 @@ import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.exception.OrderNotFoundException;
 import com.example.ordermgmt.repository.OrdersRepository;
 import com.example.ordermgmt.service.OrderService;
+import com.example.ordermgmt.event.EmailDispatchEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +42,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderInventoryManagerImpl orderInventoryManager;
     private final OrderMapperImpl orderMapper;
     private final OrderTransitionHelper transitionHelper;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -62,9 +65,23 @@ public class OrderServiceImpl implements OrderService {
         List<OrderItemDTO> itemDTOs = orderInventoryManager.processAndSaveOrderItems(request.getItems(), order);
 
         BigDecimal total = orderMapper.calculateTotal(itemDTOs);
+        OrderDTO responseDTO = orderMapper.convertToDTO(order, itemDTOs, total);
 
         logger.info("createOrder completed successfully for Customer: {}", email);
-        return orderMapper.convertToDTO(order, itemDTOs, total);
+
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                email,
+                "Order Receipt #" + order.getOrderId(),
+                "order-receipt",
+                java.util.Map.of(
+                        "name", customer.getFirstName() != null
+                                ? customer.getFirstName()
+                                        + (customer.getLastName() != null ? " " + customer.getLastName() : "")
+                                : customer.getAppUser().getEmail(),
+                        "order", responseDTO,
+                        "summary", "Your order has been placed successfully.")));
+
+        return responseDTO;
     }
 
     @Override

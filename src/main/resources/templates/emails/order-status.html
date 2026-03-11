@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #fff;
+            padding: 30px;
+            border: 1px solid #eee;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .status-box {
+            background: #fdfefe;
+            border: 1px solid #3498db;
+            border-left-width: 5px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .status-text {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #3498db;
+            text-transform: uppercase;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Order Status Update</h1>
+    </div>
+    <div class="content">
+        <p>Hello <span th:text="${name}">Customer</span>,</p>
+        <p>Your order <strong>#<span th:text="${orderId}">12345</span></strong> has been updated.</p>
+
+        <div class="status-box">
+            <p>New Status:</p>
+            <div class="status-text" th:text="${status}">SHIPPED</div>
+        </div>
+
+        <p>You can view more details by logging into your account.</p>
+    </div>
+    <div class="footer">
+        <p>This is an automated notification, please do not reply.</p>
+    </div>
+</body>
+
+</html>
