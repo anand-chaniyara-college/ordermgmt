@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #fff;
+            padding: 30px;
+            border: 1px solid #eee;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .order-info {
+            margin: 20px 0;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+
+        .total {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #e74c3c;
+            margin-top: 10px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #777;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <h1>Order Receipt</h1>
+    </div>
+    <div class="content">
+        <p>Hello <span th:text="${name}">Customer</span>,</p>
+        <p th:text="${summary}">Thank you for your order!</p>
+
+        <div class="order-info">
+            <p><strong>Order ID:</strong> <span th:text="${order.orderId}">#12345</span></p>
+            <p><strong>Date:</strong> <span th:text="${order.createdTimestamp}">2026-03-11</span></p>
+
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #eee; text-align: left;">
+                        <th style="padding: 10px;">Item</th>
+                        <th style="padding: 10px; text-align: center;">Qty</th>
+                        <th style="padding: 10px; text-align: right;">Price</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="item : ${order.items}" style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px;" th:text="${item.itemName}">Product</td>
+                        <td style="padding: 10px; text-align: center;" th:text="${item.quantity}">1</td>
+                        <td style="padding: 10px; text-align: right;" th:text="${'$' + item.price}">$0.00</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p class="total">Total: <span th:text="${'$' + order.totalAmount}">$0.00</span></p>
+        </div>
+
+        <p>We'll notify you once your order is shipped.</p>
+    </div>
+    <div class="footer">
+        <p>Thank you for shopping with us!</p>
+    </div>
+</body>
+
+</html>

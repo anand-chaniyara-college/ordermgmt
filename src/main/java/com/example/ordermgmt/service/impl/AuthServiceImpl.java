@@ -23,11 +23,12 @@ import com.example.ordermgmt.repository.AppUserRepository;
 import com.example.ordermgmt.repository.CustomerRepository;
 import com.example.ordermgmt.repository.OrganizationRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
+import com.example.ordermgmt.event.EmailDispatchEvent;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.security.TenantContextHolder;
 import com.example.ordermgmt.service.AuthService;
-import com.example.ordermgmt.service.EmailService;
 import com.example.ordermgmt.service.TokenBlacklistService;
+import org.springframework.context.ApplicationEventPublisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -60,7 +61,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
-    private final EmailService emailService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Value("${app.jwt.refresh.expirationMs}")
     private long refreshExpirationMs;
@@ -73,7 +74,7 @@ public class AuthServiceImpl implements AuthService {
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil,
             StringRedisTemplate redisTemplate,
-            EmailService emailService) {
+            ApplicationEventPublisher eventPublisher) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.customerRepository = customerRepository;
@@ -82,7 +83,7 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.redisTemplate = redisTemplate;
-        this.emailService = emailService;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -298,15 +299,14 @@ public class AuthServiceImpl implements AuthService {
         String redisKey = PR_PREFIX + org.getOrgId() + ":" + user.getEmail().toLowerCase();
         redisTemplate.opsForValue().set(redisKey, hashedTempPassword, Duration.ofMinutes(5));
 
-        // 3. Set Tenant Context to ensure EmailLog captures correct org_id
-        TenantContextHolder.setTenantId(org.getOrgId());
-        try {
-            String emailBody = String.format(
-                    "Hello,\n\nYour temporary password is: %s\nThis password will expire in 5 minutes.", tempPassword);
-            emailService.sendEmail(user.getEmail(), "Password Reset Request", emailBody);
-        } finally {
-            TenantContextHolder.clear();
-        }
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                user.getEmail(),
+                "Password Reset Request",
+                "reset-password",
+                org.getOrgId(),
+                java.util.Map.of(
+                        "name", user.getEmail(),
+                        "tempPassword", tempPassword)));
 
         logger.info("forgotPassword completed successfully for User: {}", request.getEmail());
     }

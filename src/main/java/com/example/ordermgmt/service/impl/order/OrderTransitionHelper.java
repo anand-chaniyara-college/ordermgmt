@@ -12,7 +12,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.ordermgmt.event.EmailDispatchEvent;
 import java.util.UUID;
 
 /**
@@ -25,68 +26,88 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OrderTransitionHelper {
 
-    private static final Logger logger = LoggerFactory.getLogger(OrderTransitionHelper.class);
+        private static final Logger logger = LoggerFactory.getLogger(OrderTransitionHelper.class);
 
-    private final OrdersRepository ordersRepository;
-    private final OrderValidatorImpl orderValidator;
-    private final OrderInventoryManagerImpl orderInventoryManager;
-    private final OrderMapperImpl orderMapper;
+        private final OrdersRepository ordersRepository;
+        private final OrderValidatorImpl orderValidator;
+        private final OrderInventoryManagerImpl orderInventoryManager;
+        private final OrderMapperImpl orderMapper;
+        private final ApplicationEventPublisher eventPublisher;
 
-    /**
-     * Perform a status transition for a single order in its own transaction.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public OrderDTO updateOrderInternal(UUID orderId, String newStatusString) {
-        logger.info("Processing updateOrderInternal for Order: {}", orderId);
+        /**
+         * Perform a status transition for a single order in its own transaction.
+         */
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        public OrderDTO updateOrderInternal(UUID orderId, String newStatusString) {
+                logger.info("Processing updateOrderInternal for Order: {}", orderId);
 
-        String newStatusName = newStatusString.trim().toUpperCase();
+                String newStatusName = newStatusString.trim().toUpperCase();
 
-        Orders order = ordersRepository.findById(orderId)
-                .orElseThrow(() -> {
-                    logger.warn("Skipping updateOrderInternal for Order: {} - Order not found", orderId);
-                    return new OrderNotFoundException("Order not found: " + orderId);
-                });
+                Orders order = ordersRepository.findById(orderId)
+                                .orElseThrow(() -> {
+                                        logger.warn("Skipping updateOrderInternal for Order: {} - Order not found",
+                                                        orderId);
+                                        return new OrderNotFoundException("Order not found: " + orderId);
+                                });
 
-        OrderStatus currentStatus = OrderStatus.valueOf(order.getStatus().getStatusName());
-        OrderStatus nextStatus = OrderStatus.valueOf(newStatusName);
+                OrderStatus currentStatus = OrderStatus.valueOf(order.getStatus().getStatusName());
+                OrderStatus nextStatus = OrderStatus.valueOf(newStatusName);
 
-        orderValidator.validateAdminTransition(currentStatus, nextStatus);
+                orderValidator.validateAdminTransition(currentStatus, nextStatus);
 
-        OrderStatusLookup nextStatusLookup = orderValidator.getStatusOrThrow(newStatusName);
-        orderInventoryManager.handleInventoryUpdate(order, currentStatus, nextStatus);
+                OrderStatusLookup nextStatusLookup = orderValidator.getStatusOrThrow(newStatusName);
+                orderInventoryManager.handleInventoryUpdate(order, currentStatus, nextStatus);
 
-        order.setStatus(nextStatusLookup);
-        ordersRepository.save(order);
+                order.setStatus(nextStatusLookup);
+                ordersRepository.save(order);
 
-        logger.info("updateOrderInternal completed successfully for Order: {} ({} -> {})",
-                orderId, currentStatus, nextStatus);
-        return orderMapper.convertToDTO(order);
-    }
+                logger.info("updateOrderInternal completed successfully for Order: {} ({} -> {})",
+                                orderId, currentStatus, nextStatus);
 
-    /**
-     * Cancel a stale PENDING order. Used by the auto-cancel scheduler.
-     * Double-checks that the order is still PENDING before cancelling.
-     */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void cancelStalePendingOrder(UUID orderId) {
-        logger.info("Processing cancelStalePendingOrder for Order: {}", orderId);
+                eventPublisher.publishEvent(new EmailDispatchEvent(
+                                order.getCustomer().getAppUser().getEmail(),
+                                "Order Status Update: " + nextStatus.name(),
+                                "order-status",
+                                order.getCustomer().getOrgId(),
+                                java.util.Map.of(
+                                                "name", order.getCustomer().getFirstName() != null
+                                                                ? order.getCustomer().getFirstName() + (order
+                                                                                .getCustomer().getLastName() != null
+                                                                                                ? " " + order.getCustomer()
+                                                                                                                .getLastName()
+                                                                                                : "")
+                                                                : order.getCustomer().getAppUser().getEmail(),
+                                                "orderId", order.getOrderId(),
+                                                "status", nextStatus.name())));
 
-        Orders order = ordersRepository.findById(orderId)
-                .orElseThrow(() -> {
-                    logger.warn("Skipping cancelStalePendingOrder for Order: {} - Order not found", orderId);
-                    return new OrderNotFoundException("Order not found: " + orderId);
-                });
-
-        if (!OrderStatus.PENDING.name().equals(order.getStatus().getStatusName())) {
-            logger.warn("Skipping cancelStalePendingOrder for Order: {} - no longer PENDING (current: {})",
-                    orderId, order.getStatus().getStatusName());
-            return;
+                return orderMapper.convertToDTO(order);
         }
 
-        OrderStatusLookup cancelledStatus = orderValidator.getStatusOrThrow(OrderStatus.CANCELLED.name());
-        order.setStatus(cancelledStatus);
-        ordersRepository.save(order);
+        /**
+         * Cancel a stale PENDING order. Used by the auto-cancel scheduler.
+         * Double-checks that the order is still PENDING before cancelling.
+         */
+        @Transactional(propagation = Propagation.REQUIRES_NEW)
+        public void cancelStalePendingOrder(UUID orderId) {
+                logger.info("Processing cancelStalePendingOrder for Order: {}", orderId);
 
-        logger.info("cancelStalePendingOrder completed successfully for Order: {}", orderId);
-    }
+                Orders order = ordersRepository.findById(orderId)
+                                .orElseThrow(() -> {
+                                        logger.warn("Skipping cancelStalePendingOrder for Order: {} - Order not found",
+                                                        orderId);
+                                        return new OrderNotFoundException("Order not found: " + orderId);
+                                });
+
+                if (!OrderStatus.PENDING.name().equals(order.getStatus().getStatusName())) {
+                        logger.warn("Skipping cancelStalePendingOrder for Order: {} - no longer PENDING (current: {})",
+                                        orderId, order.getStatus().getStatusName());
+                        return;
+                }
+
+                OrderStatusLookup cancelledStatus = orderValidator.getStatusOrThrow(OrderStatus.CANCELLED.name());
+                order.setStatus(cancelledStatus);
+                ordersRepository.save(order);
+
+                logger.info("cancelStalePendingOrder completed successfully for Order: {}", orderId);
+        }
 }

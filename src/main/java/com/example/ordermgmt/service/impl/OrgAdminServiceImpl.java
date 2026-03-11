@@ -13,6 +13,8 @@ import com.example.ordermgmt.repository.UserRoleRepository;
 import com.example.ordermgmt.service.OrgAdminService;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.context.ApplicationEventPublisher;
+import com.example.ordermgmt.event.EmailDispatchEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,14 +31,17 @@ public class OrgAdminServiceImpl implements OrgAdminService {
     private final AppUserRepository appUserRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationEventPublisher eventPublisher;
 
     public OrgAdminServiceImpl(
             AppUserRepository appUserRepository,
             UserRoleRepository userRoleRepository,
-            PasswordEncoder passwordEncoder) {
+            PasswordEncoder passwordEncoder,
+            ApplicationEventPublisher eventPublisher) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.passwordEncoder = passwordEncoder;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -63,6 +68,16 @@ public class OrgAdminServiceImpl implements OrgAdminService {
 
         AppUser saved = appUserRepository.save(admin);
         logger.info("createAdmin completed successfully for User: {}", request.getEmail());
+
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                saved.getEmail(),
+                "Welcome to the Organization",
+                "greeting-credentials",
+                saved.getOrgId(),
+                java.util.Map.of(
+                        "name", saved.getEmail(),
+                        "email", saved.getEmail(),
+                        "password", request.getPassword())));
 
         return new UserResponseDTO(
                 saved.getUserId(),

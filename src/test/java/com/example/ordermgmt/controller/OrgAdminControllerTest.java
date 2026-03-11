@@ -3,7 +3,6 @@ package com.example.ordermgmt.controller;
 import com.example.ordermgmt.dto.CreateAdminRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
-import com.example.ordermgmt.dto.analytics.MonthlyReportRequestDTO;
 import com.example.ordermgmt.dto.analytics.OrderAnalyticsItemDTO;
 import com.example.ordermgmt.dto.analytics.OrderAnalyticsResponseDTO;
 import com.example.ordermgmt.dto.analytics.OrderAnalyticsSaleDTO;
@@ -14,6 +13,8 @@ import com.example.ordermgmt.exception.GlobalExceptionHandler;
 import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.service.AdminAnalyticsService;
 import com.example.ordermgmt.service.OrgAdminService;
+import com.example.ordermgmt.event.EmailDispatchEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -55,6 +56,9 @@ class OrgAdminControllerTest {
 
         @Mock
         private AdminAnalyticsService adminAnalyticsService;
+
+        @Mock
+        private ApplicationEventPublisher eventPublisher;
 
         @InjectMocks
         private OrgAdminController orgAdminController;
@@ -159,26 +163,6 @@ class OrgAdminControllerTest {
         }
 
         @Test
-        void testSendReportEmail_Success() throws Exception {
-                MonthlyReportRequestDTO requestDTO = new MonthlyReportRequestDTO("JANUARY", 2025);
-                Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
-                when(authentication.getName()).thenReturn("org-admin@example.com");
-                doNothing().when(adminAnalyticsService).sendMonthlyReportEmail("JANUARY", 2025,
-                                "org-admin@example.com");
-
-                mockMvc.perform(post("/api/org-admin/analytics/sendreportemail")
-                                .principal(authentication)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(objectMapper.writeValueAsString(requestDTO)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.message")
-                                                .value("Report email request submitted for org-admin@example.com"));
-
-                verify(adminAnalyticsService, times(1))
-                                .sendMonthlyReportEmail("JANUARY", 2025, "org-admin@example.com");
-        }
-
-        @Test
         void testGetRevenueReport_Success() throws Exception {
                 LocalDate startDate = LocalDate.parse("2026-03-01");
                 LocalDate endDate = LocalDate.parse("2026-03-09");
@@ -216,6 +200,28 @@ class OrgAdminControllerTest {
                                 .andExpect(jsonPath("$.items[0].sales[0].soldOn").value("2026-03-02T14:30:00Z"));
 
                 verify(adminAnalyticsService, times(1)).getRevenueReport(startDate, endDate, null, null);
+        }
+
+        @Test
+        void testGetRevenueReport_WithEmail_Success() throws Exception {
+                LocalDate startDate = LocalDate.parse("2026-03-01");
+                LocalDate endDate = LocalDate.parse("2026-03-09");
+                RevenueReportResponseDTO reportDTO = new RevenueReportResponseDTO(startDate, endDate, 0L, 0L,
+                                BigDecimal.ZERO, Collections.emptyList());
+
+                Authentication authentication = org.mockito.Mockito.mock(Authentication.class);
+                when(authentication.getName()).thenReturn("org-admin@example.com");
+                when(adminAnalyticsService.getRevenueReport(startDate, endDate, null, null)).thenReturn(reportDTO);
+
+                mockMvc.perform(get("/api/org-admin/analytics/revenue-report")
+                                .principal(authentication)
+                                .param("startdate", "2026-03-01")
+                                .param("enddate", "2026-03-09")
+                                .param("sendEmail", "true"))
+                                .andExpect(status().isOk());
+
+                verify(adminAnalyticsService, times(1)).getRevenueReport(startDate, endDate, null, null);
+                verify(eventPublisher, times(1)).publishEvent(any(EmailDispatchEvent.class));
         }
 
         @Test

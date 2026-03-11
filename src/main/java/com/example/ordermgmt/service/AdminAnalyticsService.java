@@ -20,6 +20,4 @@ public interface AdminAnalyticsService {
                         String itemName,
                         String orderStatus,
                         org.springframework.data.domain.Pageable pageable);
-
-        void sendMonthlyReportEmail(String month, int year, String recipientEmail);
 }
