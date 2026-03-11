@@ -23,13 +23,12 @@ public class OrderAutoCancelScheduler {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderAutoCancelScheduler.class);
     private static final int STALE_MINUTES = 60;
-    private static final long SCHEDULE_INTERVAL_MS = 60_000L;
     private static final String PENDING_STATUS = "PENDING";
 
     private final OrdersRepository ordersRepository;
     private final OrderTransitionHelper transitionHelper;
 
-    @Scheduled(fixedRate = SCHEDULE_INTERVAL_MS)
+    @Scheduled(fixedRateString = "${SCHEDULER_FIXED_RATE_MS:300000}")
     public void cancelStalePendingOrders() {
         logger.info("Processing cancelStalePendingOrders for Scheduler");
 
