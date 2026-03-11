@@ -6,6 +6,8 @@ import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
 import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 import com.example.ordermgmt.dto.RegistrationRequestDTO;
 import com.example.ordermgmt.dto.RegistrationResponseDTO;
+import com.example.ordermgmt.dto.ForgotPasswordRequestDTO;
+import com.example.ordermgmt.dto.ResetPasswordRequestDTO;
 import com.example.ordermgmt.service.AuthService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -116,6 +118,46 @@ public class AuthController {
         authService.logoutUser(request, accessToken);
         logger.info("logout completed successfully for User");
         return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(summary = "Forgot Password", description = "Request a temporary password to be sent to your email. Valid for 5 minutes.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Temporary password sent", content = @Content),
+            @ApiResponse(responseCode = "404", description = "User or organization not found", content = @Content),
+            @ApiResponse(responseCode = "429", description = "Too many requests", content = @Content)
+    })
+    @SecurityRequirements()
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDTO request,
+            HttpServletRequest servletRequest) {
+        String clientIp = getClientIp(servletRequest);
+
+        if (!rateLimitingService.allowRequest(clientIp, rateLimitRequests, rateLimitWindowSeconds)) {
+            logger.warn("Rate limit exceeded for IP: {}", clientIp);
+            return ResponseEntity.status(429)
+                    .body(Map.of("message", "Too many requests. Please try again later."));
+        }
+
+        logger.info("Processing forgotPassword for User: {}", request.getEmail());
+        authService.forgotPassword(request);
+        logger.info("forgotPassword completed successfully for User: {}", request.getEmail());
+        return ResponseEntity
+                .ok(Map.of("message", "If an account matches, a temporary password has been sent to your email."));
+    }
+
+    @PatchMapping("/reset-password")
+    @Operation(summary = "Reset Password", description = "Reset your password using the temporary password sent to your email.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Password reset successfully", content = @Content),
+            @ApiResponse(responseCode = "400", description = "Invalid input", content = @Content),
+            @ApiResponse(responseCode = "401", description = "Invalid or expired temporary password", content = @Content)
+    })
+    @SecurityRequirements()
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequestDTO request) {
+        logger.info("Processing resetPassword for User: {}", request.getEmail());
+        authService.resetPassword(request);
+        logger.info("resetPassword completed successfully for User: {}", request.getEmail());
+        return ResponseEntity.ok(Map.of("message", "Password has been successfully reset."));
     }
 
     private String getClientIp(HttpServletRequest request) {

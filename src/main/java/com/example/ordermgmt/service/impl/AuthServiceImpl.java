@@ -5,6 +5,8 @@ import com.example.ordermgmt.dto.LoginResponseDTO;
 import com.example.ordermgmt.dto.RefreshTokenRequestDTO;
 import com.example.ordermgmt.dto.RefreshTokenResponseDTO;
 import com.example.ordermgmt.dto.RegistrationRequestDTO;
+import com.example.ordermgmt.dto.ForgotPasswordRequestDTO;
+import com.example.ordermgmt.dto.ResetPasswordRequestDTO;
 import com.example.ordermgmt.entity.AppUser;
 import com.example.ordermgmt.entity.Customer;
 import com.example.ordermgmt.entity.Organization;
@@ -23,6 +25,7 @@ import com.example.ordermgmt.repository.OrganizationRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
 import com.example.ordermgmt.security.JwtUtil;
 import com.example.ordermgmt.service.AuthService;
+import com.example.ordermgmt.service.EmailService;
 import com.example.ordermgmt.service.TokenBlacklistService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +47,7 @@ public class AuthServiceImpl implements AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthServiceImpl.class);
     private static final String RT_PREFIX = "RT:";
+    private static final String PR_PREFIX = "PR:";
     private static final String ROLE_CUSTOMER = "CUSTOMER";
     private static final String ROLE_SUPER_ADMIN = "SUPER_ADMIN";
 
@@ -55,6 +59,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final StringRedisTemplate redisTemplate;
+    private final EmailService emailService;
 
     @Value("${app.jwt.refresh.expirationMs}")
     private long refreshExpirationMs;
@@ -66,7 +71,8 @@ public class AuthServiceImpl implements AuthService {
             TokenBlacklistService tokenBlacklistService,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil,
-            StringRedisTemplate redisTemplate) {
+            StringRedisTemplate redisTemplate,
+            EmailService emailService) {
         this.appUserRepository = appUserRepository;
         this.userRoleRepository = userRoleRepository;
         this.customerRepository = customerRepository;
@@ -75,6 +81,7 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.redisTemplate = redisTemplate;
+        this.emailService = emailService;
     }
 
     @Override
@@ -243,6 +250,76 @@ public class AuthServiceImpl implements AuthService {
         }
 
         logger.info("logoutUser completed successfully");
+    }
+
+    @Override
+    @Transactional
+    public void forgotPassword(ForgotPasswordRequestDTO request) {
+        logger.info("Processing forgotPassword for User: {}", request.getEmail());
+
+        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping forgotPassword for User: {} - Organization not found", request.getEmail());
+                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
+                });
+
+        AppUser user = appUserRepository.findByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping forgotPassword for User: {} - User not found", request.getEmail());
+                    return new ResourceNotFoundException("User not found: " + request.getEmail());
+                });
+
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            logger.warn("Skipping forgotPassword for User: {} - Account inactive", request.getEmail());
+            throw new AccountInactiveException("User is inactive");
+        }
+
+        String tempPassword = UUID.randomUUID().toString().substring(0, 8);
+        String hashedTempPassword = passwordEncoder.encode(tempPassword);
+
+        String redisKey = PR_PREFIX + org.getOrgId() + ":" + user.getEmail().toLowerCase();
+        redisTemplate.opsForValue().set(redisKey, hashedTempPassword, Duration.ofMinutes(5));
+
+        String emailBody = String.format(
+                "Hello,\n\nYour temporary password is: %s\nThis password will expire in 5 minutes.", tempPassword);
+        emailService.sendEmail(user.getEmail(), "Password Reset Request", emailBody);
+
+        logger.info("forgotPassword completed successfully for User: {}", request.getEmail());
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequestDTO request) {
+        logger.info("Processing resetPassword for User: {}", request.getEmail());
+
+        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping resetPassword for User: {} - Organization not found", request.getEmail());
+                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
+                });
+
+        AppUser user = appUserRepository.findByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping resetPassword for User: {} - User not found", request.getEmail());
+                    return new ResourceNotFoundException("User not found: " + request.getEmail());
+                });
+
+        String redisKey = PR_PREFIX + org.getOrgId() + ":" + user.getEmail().toLowerCase();
+        String storedHash = redisTemplate.opsForValue().get(redisKey);
+
+        if (storedHash == null || !passwordEncoder.matches(request.getTemporaryPassword(), storedHash)) {
+            logger.warn("Skipping resetPassword for User: {} - Invalid or expired temporary password",
+                    request.getEmail());
+            throw new InvalidTokenException("Invalid or expired temporary password");
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setIsPasswordChanged(true);
+        appUserRepository.save(user);
+
+        redisTemplate.delete(redisKey);
+
+        logger.info("resetPassword completed successfully for User: {}", request.getEmail());
     }
 
     private String createRefreshToken(UUID userId) {
