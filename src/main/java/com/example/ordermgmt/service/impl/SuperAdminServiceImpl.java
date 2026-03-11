@@ -3,6 +3,7 @@ package com.example.ordermgmt.service.impl;
 import com.example.ordermgmt.dto.CreateOrgAdminRequestDTO;
 import com.example.ordermgmt.dto.CreateOrganizationRequestDTO;
 import com.example.ordermgmt.dto.OrganizationResponseDTO;
+import com.example.ordermgmt.dto.UpdateOrganizationStatusRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
 import com.example.ordermgmt.entity.AppUser;
@@ -159,6 +160,23 @@ public class SuperAdminServiceImpl implements SuperAdminService {
         orgAdmin.setIsActive(request.getIsActive());
         appUserRepository.save(orgAdmin);
         logger.info("updateOrgAdminStatus completed successfully for User: {}", userId);
+    }
+
+    @Override
+    @Transactional
+    public void updateOrganizationStatus(UUID orgId, UpdateOrganizationStatusRequestDTO request) {
+        logger.info("Processing updateOrganizationStatus for Organization: {}", orgId);
+
+        Organization org = organizationRepository.findById(orgId)
+                .orElseThrow(() -> {
+                    logger.warn("Skipping updateOrganizationStatus for Organization: {} - Organization not found",
+                            orgId);
+                    return new ResourceNotFoundException("Organization not found: " + orgId);
+                });
+
+        org.setIsActive(request.getIsActive());
+        organizationRepository.save(org);
+        logger.info("updateOrganizationStatus completed successfully for Organization: {}", orgId);
     }
 
     private OrganizationResponseDTO toOrganizationResponse(Organization org) {

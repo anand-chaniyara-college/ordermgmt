@@ -3,6 +3,7 @@ package com.example.ordermgmt.controller;
 import com.example.ordermgmt.dto.CreateOrgAdminRequestDTO;
 import com.example.ordermgmt.dto.CreateOrganizationRequestDTO;
 import com.example.ordermgmt.dto.OrganizationResponseDTO;
+import com.example.ordermgmt.dto.UpdateOrganizationStatusRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
 import com.example.ordermgmt.dto.UserResponseDTO;
 import com.example.ordermgmt.service.SuperAdminService;
@@ -37,7 +38,8 @@ public class SuperAdminController {
     }
 
     @PostMapping("/organizations")
-    public ResponseEntity<OrganizationResponseDTO> createOrganization(@Valid @RequestBody CreateOrganizationRequestDTO request) {
+    public ResponseEntity<OrganizationResponseDTO> createOrganization(
+            @Valid @RequestBody CreateOrganizationRequestDTO request) {
         logger.info("Processing createOrganization for SuperAdmin");
         OrganizationResponseDTO response = superAdminService.createOrganization(request);
         logger.info("createOrganization completed successfully for SuperAdmin");
@@ -76,5 +78,15 @@ public class SuperAdminController {
         superAdminService.updateOrgAdminStatus(userId, request);
         logger.info("updateOrgAdminStatus completed successfully for User: {}", userId);
         return ResponseEntity.ok(Map.of("message", "Org Admin status updated successfully."));
+    }
+
+    @PatchMapping("/organizations/{id}/status")
+    public ResponseEntity<Map<String, String>> updateOrganizationStatus(
+            @PathVariable("id") UUID orgId,
+            @Valid @RequestBody UpdateOrganizationStatusRequestDTO request) {
+        logger.info("Processing updateOrganizationStatus for Organization: {}", orgId);
+        superAdminService.updateOrganizationStatus(orgId, request);
+        logger.info("updateOrganizationStatus completed successfully for Organization: {}", orgId);
+        return ResponseEntity.ok(Map.of("message", "Organization status updated successfully."));
     }
 }
