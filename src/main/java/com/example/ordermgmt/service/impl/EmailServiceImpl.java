@@ -15,6 +15,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.MessagingException;
+import java.util.UUID;
+import com.example.ordermgmt.security.TenantContextHolder;
 
 @Service
 @RequiredArgsConstructor

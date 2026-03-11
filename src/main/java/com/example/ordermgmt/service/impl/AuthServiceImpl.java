@@ -24,6 +24,7 @@ import com.example.ordermgmt.repository.CustomerRepository;
 import com.example.ordermgmt.repository.OrganizationRepository;
 import com.example.ordermgmt.repository.UserRoleRepository;
 import com.example.ordermgmt.security.JwtUtil;
+import com.example.ordermgmt.security.TenantContextHolder;
 import com.example.ordermgmt.service.AuthService;
 import com.example.ordermgmt.service.EmailService;
 import com.example.ordermgmt.service.TokenBlacklistService;
@@ -131,11 +132,13 @@ public class AuthServiceImpl implements AuthService {
                 Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
+        TenantContextHolder.setTenantId(org.getOrgId());
         try {
             appUserRepository.save(newUser);
 
             createEmptyCustomerProfile(newUser);
         } finally {
+            TenantContextHolder.clear();
             SecurityContextHolder.clearContext();
         }
 
@@ -257,21 +260,36 @@ public class AuthServiceImpl implements AuthService {
     public void forgotPassword(ForgotPasswordRequestDTO request) {
         logger.info("Processing forgotPassword for User: {}", request.getEmail());
 
-        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
-                .orElseThrow(() -> {
-                    logger.warn("Skipping forgotPassword for User: {} - Organization not found", request.getEmail());
-                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
-                });
-
-        AppUser user = appUserRepository.findByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())
+        // 1. Find User by email first to determine the tenant
+        AppUser user = appUserRepository.findByEmail(request.getEmail().toLowerCase())
                 .orElseThrow(() -> {
                     logger.warn("Skipping forgotPassword for User: {} - User not found", request.getEmail());
                     return new ResourceNotFoundException("User not found: " + request.getEmail());
                 });
 
+        // 2. Validate user belongs to the requested organization subdomain
+        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping forgotPassword for User: {} - Organization not found: {}",
+                            request.getEmail(), request.getOrgSubdomain());
+                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
+                });
+
+        if (!org.getOrgId().equals(user.getOrgId())) {
+            logger.warn("Skipping forgotPassword for User: {} - User does not belong to organization: {}",
+                    request.getEmail(), request.getOrgSubdomain());
+            throw new ResourceNotFoundException("User not found in organization: " + request.getOrgSubdomain());
+        }
+
         if (!Boolean.TRUE.equals(user.getIsActive())) {
             logger.warn("Skipping forgotPassword for User: {} - Account inactive", request.getEmail());
             throw new AccountInactiveException("User is inactive");
+        }
+
+        if (!Boolean.TRUE.equals(org.getIsActive())) {
+            logger.warn("Skipping forgotPassword for User: {} - Organization inactive: {}",
+                    request.getEmail(), request.getOrgSubdomain());
+            throw new OrganizationInactiveException("Organization is inactive: " + request.getOrgSubdomain());
         }
 
         String tempPassword = UUID.randomUUID().toString().substring(0, 8);
@@ -280,9 +298,15 @@ public class AuthServiceImpl implements AuthService {
         String redisKey = PR_PREFIX + org.getOrgId() + ":" + user.getEmail().toLowerCase();
         redisTemplate.opsForValue().set(redisKey, hashedTempPassword, Duration.ofMinutes(5));
 
-        String emailBody = String.format(
-                "Hello,\n\nYour temporary password is: %s\nThis password will expire in 5 minutes.", tempPassword);
-        emailService.sendEmail(user.getEmail(), "Password Reset Request", emailBody);
+        // 3. Set Tenant Context to ensure EmailLog captures correct org_id
+        TenantContextHolder.setTenantId(org.getOrgId());
+        try {
+            String emailBody = String.format(
+                    "Hello,\n\nYour temporary password is: %s\nThis password will expire in 5 minutes.", tempPassword);
+            emailService.sendEmail(user.getEmail(), "Password Reset Request", emailBody);
+        } finally {
+            TenantContextHolder.clear();
+        }
 
         logger.info("forgotPassword completed successfully for User: {}", request.getEmail());
     }
@@ -292,17 +316,25 @@ public class AuthServiceImpl implements AuthService {
     public void resetPassword(ResetPasswordRequestDTO request) {
         logger.info("Processing resetPassword for User: {}", request.getEmail());
 
-        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
-                .orElseThrow(() -> {
-                    logger.warn("Skipping resetPassword for User: {} - Organization not found", request.getEmail());
-                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
-                });
-
-        AppUser user = appUserRepository.findByOrgIdAndEmailIgnoreCase(org.getOrgId(), request.getEmail())
+        // 1. Find User by email and validate organization
+        AppUser user = appUserRepository.findByEmail(request.getEmail().toLowerCase())
                 .orElseThrow(() -> {
                     logger.warn("Skipping resetPassword for User: {} - User not found", request.getEmail());
                     return new ResourceNotFoundException("User not found: " + request.getEmail());
                 });
+
+        Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
+                .orElseThrow(() -> {
+                    logger.warn("Skipping resetPassword for User: {} - Organization not found: {}",
+                            request.getEmail(), request.getOrgSubdomain());
+                    return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
+                });
+
+        if (!org.getOrgId().equals(user.getOrgId())) {
+            logger.warn("Skipping resetPassword for User: {} - User does not belong to organization: {}",
+                    request.getEmail(), request.getOrgSubdomain());
+            throw new ResourceNotFoundException("User not found in organization: " + request.getOrgSubdomain());
+        }
 
         String redisKey = PR_PREFIX + org.getOrgId() + ":" + user.getEmail().toLowerCase();
         String storedHash = redisTemplate.opsForValue().get(redisKey);
@@ -313,11 +345,16 @@ public class AuthServiceImpl implements AuthService {
             throw new InvalidTokenException("Invalid or expired temporary password");
         }
 
-        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
-        user.setIsPasswordChanged(true);
-        appUserRepository.save(user);
-
-        redisTemplate.delete(redisKey);
+        // 2. Set Tenant Context to ensure Auditing captures correct org_id
+        TenantContextHolder.setTenantId(org.getOrgId());
+        try {
+            user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+            user.setIsPasswordChanged(true);
+            appUserRepository.save(user);
+            redisTemplate.delete(redisKey);
+        } finally {
+            TenantContextHolder.clear();
+        }
 
         logger.info("resetPassword completed successfully for User: {}", request.getEmail());
     }
