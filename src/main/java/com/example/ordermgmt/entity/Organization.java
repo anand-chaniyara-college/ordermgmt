@@ -22,7 +22,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "ORGANIZATION", schema = "ordermgmt")
+@Table(name = "ORGANIZATION")
 @EntityListeners(AuditingEntityListener.class)
 public class Organization {
 

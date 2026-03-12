@@ -24,7 +24,7 @@ import org.hibernate.annotations.TenantId;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "ORDER_ITEM", schema = "ordermgmt")
+@Table(name = "ORDER_ITEM")
 @EntityListeners(AuditingEntityListener.class)
 public class OrderItem {
 

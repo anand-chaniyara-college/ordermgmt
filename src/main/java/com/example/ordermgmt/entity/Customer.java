@@ -20,7 +20,7 @@ import org.hibernate.annotations.UuidGenerator;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "CUSTOMER", schema = "ordermgmt")
+@Table(name = "CUSTOMER")
 @EntityListeners(AuditingEntityListener.class)
 public class Customer {
 

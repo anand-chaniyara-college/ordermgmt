@@ -23,7 +23,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 @AllArgsConstructor
 @ToString
 @Entity
-@Table(name = "USER_ROLE", schema = "ordermgmt")
+@Table(name = "USER_ROLE")
 @EntityListeners(AuditingEntityListener.class)
 public class UserRole {
 

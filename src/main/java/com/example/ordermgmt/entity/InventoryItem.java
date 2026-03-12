@@ -23,7 +23,7 @@ import org.hibernate.annotations.UuidGenerator;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "INVENTORY_ITEM", schema = "ordermgmt")
+@Table(name = "INVENTORY_ITEM")
 @EntityListeners(AuditingEntityListener.class)
 public class InventoryItem {
 

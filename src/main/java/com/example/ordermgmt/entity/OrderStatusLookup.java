@@ -21,7 +21,7 @@ import org.springframework.data.annotation.LastModifiedBy;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "ORDER_STATUS_LOOKUP", schema = "ordermgmt")
+@Table(name = "ORDER_STATUS_LOOKUP")
 @EntityListeners(AuditingEntityListener.class)
 public class OrderStatusLookup {
 

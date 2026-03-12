@@ -13,7 +13,7 @@ import org.hibernate.annotations.TenantId;
 import org.hibernate.annotations.UuidGenerator;
 
 @Entity
-@Table(name = "EMAIL_LOG", schema = "ordermgmt")
+@Table(name = "EMAIL_LOG")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

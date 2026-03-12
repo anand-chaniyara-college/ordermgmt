@@ -19,7 +19,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "PRICING_CATALOG", schema = "ordermgmt")
+@Table(name = "PRICING_CATALOG")
 @EntityListeners(AuditingEntityListener.class)
 public class PricingCatalog {
 
