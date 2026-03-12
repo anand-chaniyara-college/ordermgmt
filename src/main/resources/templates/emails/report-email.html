@@ -99,8 +99,12 @@
                 <div class="stat-val" th:text="${reportData.totalSoldQty}">0</div>
                 <div class="stat-label">Total Quantity</div>
             </div>
-            <div class="stat-box">
+            <div class="stat-box" th:if="${reportType == 'Revenue Report'}">
                 <div class="stat-val" th:text="${'$' + reportData.totalRevenue}">$0.00</div>
+                <div class="stat-label">Total Revenue</div>
+            </div>
+            <div class="stat-box" th:if="${reportType != 'Revenue Report'}">
+                <div class="stat-val">N/A</div>
                 <div class="stat-label">Total Revenue</div>
             </div>
         </div>
@@ -110,13 +114,13 @@
             <thead>
                 <tr>
                     <th>Item Name</th>
-                    <th style="text-align: center;">Sales Count</th>
+                    <th style="text-align: center;">Sale Entries</th>
                 </tr>
             </thead>
             <tbody>
                 <tr th:each="item : ${reportData.items}">
                     <td th:text="${item.itemName}">Item</td>
-                    <td style="text-align: center;" th:text="${item.totalSoldItems}">0</td>
+                    <td style="text-align: center;" th:text="${#lists.size(item.sales)}">0</td>
                 </tr>
             </tbody>
         </table>

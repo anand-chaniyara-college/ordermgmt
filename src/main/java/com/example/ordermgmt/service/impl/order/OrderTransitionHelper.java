@@ -104,10 +104,24 @@ public class OrderTransitionHelper {
                         return;
                 }
 
-                OrderStatusLookup cancelledStatus = orderValidator.getStatusOrThrow(OrderStatus.CANCELLED.name());
-                order.setStatus(cancelledStatus);
-                ordersRepository.save(order);
+        OrderStatusLookup cancelledStatus = orderValidator.getStatusOrThrow(OrderStatus.CANCELLED.name());
+        order.setStatus(cancelledStatus);
+        ordersRepository.save(order);
 
-                logger.info("cancelStalePendingOrder completed successfully for Order: {}", orderId);
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                order.getCustomer().getAppUser().getEmail(),
+                "Order Status Update: " + OrderStatus.CANCELLED.name(),
+                "order-status",
+                order.getCustomer().getOrgId(),
+                java.util.Map.of(
+                        "name", order.getCustomer().getFirstName() != null
+                                ? order.getCustomer().getFirstName() + (order.getCustomer().getLastName() != null
+                                        ? " " + order.getCustomer().getLastName()
+                                        : "")
+                                : order.getCustomer().getAppUser().getEmail(),
+                        "orderId", order.getOrderId(),
+                        "status", OrderStatus.CANCELLED.name())));
+
+        logger.info("cancelStalePendingOrder completed successfully for Order: {}", orderId);
         }
 }

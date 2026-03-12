@@ -134,6 +134,20 @@ public class OrderServiceImpl implements OrderService {
         order.setStatus(cancelledStatus);
         ordersRepository.save(order);
 
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                email,
+                "Order Status Update: " + OrderStatus.CANCELLED.name(),
+                "order-status",
+                order.getCustomer().getOrgId(),
+                java.util.Map.of(
+                        "name", order.getCustomer().getFirstName() != null
+                                ? order.getCustomer().getFirstName()
+                                        + (order.getCustomer().getLastName() != null ? " "
+                                                + order.getCustomer().getLastName() : "")
+                                : order.getCustomer().getAppUser().getEmail(),
+                        "orderId", order.getOrderId(),
+                        "status", OrderStatus.CANCELLED.name())));
+
         logger.info("cancelOrder completed successfully for Order: {}", orderId);
         return orderMapper.convertToDTO(order);
     }
