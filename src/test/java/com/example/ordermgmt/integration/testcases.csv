@@ -1,0 +1,54 @@
+File Name,Flow Name,SQ No,Precondition,API / Service Call,Expected Result,DB Assertion
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,1,Master roles and order-status lookup seeded,Super-admin create organization A,Organization A created,organization row exists with active status
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,2,SQ 1 complete,Super-admin create organization B,Organization B created,second organization row exists
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,3,SQ 1-2 complete,Super-admin list organizations,Both orgs returned,created org ids/subdomains match DB
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,4,Org A exists,Super-admin create org-admin A,Org-admin A created,app_user row with role ORG_ADMIN org_id=orgA
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,5,Org B exists,Super-admin create org-admin B,Org-admin B created,app_user row with role ORG_ADMIN org_id=orgB
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,6,Org-admin A exists,Super-admin update org-admin A status,status update succeeds,app_user.is_active changed
+SuperAdminBootstrapIntegrationTest.java,Super Admin Bootstrap,7,Org B exists,Super-admin update organization B status,org status update succeeds,organization.is_active changed
+OrgAdminManagementIntegrationTest.java,Org Admin Management,8,Org-admin A active,Org-admin A create admin A1,Admin A1 created in org A,app_user row with role ADMIN org_id=orgA
+OrgAdminManagementIntegrationTest.java,Org Admin Management,9,SQ 8 complete,Org-admin A create admin A2,Admin A2 created,second org-A admin row exists
+OrgAdminManagementIntegrationTest.java,Org Admin Management,10,SQ 8-9 complete,Org-admin A list admins,only org-A admins returned,no org-B admin included
+OrgAdminManagementIntegrationTest.java,Org Admin Management,11,Admin A1 exists,Org-admin A update admin A1 status,status update succeeds,app_user.is_active updated for A1
+OrgAdminManagementIntegrationTest.java,Org Admin Management,12,Admin A1 exists,Org-admin A tries duplicate admin email create,rejected,no duplicate row inserted
+OrgAdminManagementIntegrationTest.java,Org Admin Management,13,Org-admin B and org-B users exist,Org-admin A tries cross-org admin update,rejected,target row unchanged
+OrgAdminManagementIntegrationTest.java,Org Admin Management,14,Non-org-admin requester available,Non-org-admin tries admin management action,rejected,no row inserted/updated
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,15,Org A active,Customer register in org A,registration succeeds,app_user row with role CUSTOMER created
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,16,SQ 15 complete,Registration side-effect check,empty customer profile created,customer row linked to new user exists
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,17,Customer exists,Customer login,access + refresh token returned,no invalid state change login valid
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,18,SQ 17 complete,Customer refresh token,new token pair returned,old refresh token revoked
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,19,Active session exists,Customer logout,logout succeeds,refresh token removed access token blacklisted
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,20,Customer exists,Forgot password,reset token issued,reset token persisted
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,21,Valid reset token exists,Reset password,password reset succeeds,password hash changed
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,22,Password reset complete,Login with new password,login succeeds,user remains active
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,23,Customer exists,Update customer profile,profile update succeeds,customer fields updated
+CustomerAuthLifecycleIntegrationTest.java,Customer Onboarding/Auth,24,Org inactive or duplicate email prepared,Negative registration/login variants,rejected,no invalid user/customer rows
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,25,Admin A1 active,Add inventory items,items created,inventory_item rows inserted
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,26,Items exist,Update inventory items,update succeeds,name/stock fields changed
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,27,Items exist,Add stock,stock increment succeeds,available_stock increased
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,28,Items exist,Add initial prices,price setup succeeds,pricing_catalog rows inserted
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,29,Initial prices exist,Update prices,update succeeds,pricing_catalog.unit_price changed and pricing_history inserted
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,30,Customer active priced items exist,Customer fetch product catalog,only priced and available items returned,out-of-stock items excluded
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,31,Same as SQ30,Customer fetch paginated catalog,correct page metadata returned,total count matches
+CatalogSetupAndBrowseIntegrationTest.java,Catalog Setup/Browse,32,Duplicate price or missing item prepared,Negative inventory pricing variants,rejected,no invalid mutation
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,33,Customer profile complete priced stock available,Customer create order,order created PENDING,orders and order_item rows inserted
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,34,SQ33 complete,Validate order pricing snapshot,order items carry unit prices,unit_price matches expected
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,35,Order exists,Customer list own orders,created order returned,only this customer orders returned
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,36,Order exists,Customer get own order by id,order details returned,correct row fetched
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,37,Order exists,Admin list all orders,order visible to admin,no DB change
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,38,Order PENDING,Admin update to CONFIRMED,transition succeeds,available_stock down reserved_stock up
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,39,Order CONFIRMED,Admin update to PROCESSING,transition succeeds,orders.status PROCESSING
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,40,Order PROCESSING,Admin update to SHIPPED,transition succeeds,orders.status SHIPPED
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,41,Order SHIPPED,Admin update to DELIVERED,transition succeeds,reserved_stock finalized
+OrderSuccessLifecycleIntegrationTest.java,Order Success Lifecycle,42,Email/event assertions scope,Verify order events logs,side effects observed,email or event rows exist
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,43,Low stock prepared,Customer create order insufficient stock,rejected,no order rows committed
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,44,Incomplete profile prepared,Customer create order incomplete profile,rejected,no order created
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,45,Missing price prepared,Customer create order unpriced item,rejected,no order created
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,46,Fresh PENDING order exists,Customer cancel pending order,cancel succeeds,orders.status CANCELLED
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,47,Non-pending order exists,Customer cancel non-pending order,rejected,order unchanged
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,48,Mixed-status orders exist,Admin bulk status update partial,partial success returned,successful rows updated
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,49,Delivered sales seeded,Monthly sales report,report returned,totals match DB
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,50,Sales data across range exists,Revenue report by date range,report returned,totals match DB
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,51,Same as SQ50,Revenue report with item filter pagination,filtered report returned,totals match rows
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,52,Orders with mixed statuses exist,Order analytics by date item status,analytics returned,aggregates match DB
+OrderFailureAndReportingIntegrationTest.java,Failure/Cancel/Reporting,53,Invalid date range prepared,Invalid analytics filters,rejected,no DB mutation
