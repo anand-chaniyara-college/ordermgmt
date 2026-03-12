@@ -346,13 +346,6 @@ ALTER TABLE ONLY ordermgmt.pricing_catalog
     ADD CONSTRAINT fk_pricing_catalog_item
     FOREIGN KEY (itemid) REFERENCES ordermgmt.inventory_item(itemid)
     ON UPDATE CASCADE ON DELETE RESTRICT;
-
-ALTER TABLE ONLY ordermgmt.pricing_history
-    ADD CONSTRAINT fk_pricing_history_item
-    FOREIGN KEY (itemid) REFERENCES ordermgmt.inventory_item(itemid)
-    ON UPDATE RESTRICT ON DELETE RESTRICT;
-
-
 -- -----------------------------------------------------------------------------
 -- 6) Unique constraints/indexes de-duplication and normalization
 -- -----------------------------------------------------------------------------
