@@ -1,8 +1,6 @@
 package com.example.ordermgmt.service.impl;
 
-import com.example.ordermgmt.dto.analytics.ItemSalesReportDTO;
 import com.example.ordermgmt.dto.analytics.ItemSoldOnRowDTO;
-import com.example.ordermgmt.dto.analytics.MonthlySalesLogDTO;
 import com.example.ordermgmt.dto.analytics.OrderAnalyticsItemDTO;
 import com.example.ordermgmt.dto.analytics.OrderAnalyticsResponseDTO;
 import com.example.ordermgmt.dto.analytics.OrderAnalyticsSaleDTO;
@@ -19,16 +17,9 @@ import com.example.ordermgmt.service.AdminAnalyticsService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.Month;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -53,26 +44,6 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
             .collect(Collectors.toUnmodifiableSet());
     private final OrderItemRepository orderItemRepository;
 
-    @Override
-    @Transactional(readOnly = true)
-    public MonthlySalesLogDTO getMonthlyReport(String month, int year) {
-        logger.info("Processing getMonthlyReport for: {}-{}", month, year);
-
-        int monthInt = validateAndGetMonthIndex(month);
-
-        MonthlySalesLogDTO report = orderItemRepository.getMonthlyReport(monthInt, year);
-        if (report == null || report.getTotalSoldItems() == null || report.getTotalSoldItems() == 0) {
-            logger.warn("Skipping getMonthlyReport for: {}-{} - No records found", month, year);
-            throw new com.example.ordermgmt.exception.ResourceNotFoundException(
-                    "No records found for " + month + " " + year);
-        }
-
-        List<ItemSalesReportDTO> items = orderItemRepository.getMonthlyItemWiseReport(monthInt, year);
-        report.setItems(items);
-
-        logger.info("getMonthlyReport completed successfully for: {}-{}", month, year);
-        return report;
-    }
 
     @Override
     @Transactional(readOnly = true)
@@ -128,7 +99,7 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
                             startDateTime,
                             endDateTimeExclusive,
                             pageable != null ? pageable : org.springframework.data.domain.Pageable.unpaged());
-            pagedAggregatedItems = itemPage.getContent();
+            pagedAggregatedItems = itemPage != null ? itemPage.getContent() : Collections.emptyList();
         }
 
         List<RevenueReportItemDTO> items = buildRevenueItems(
@@ -423,7 +394,7 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         if (startDate == null || endDate == null) {
             throw new InvalidOperationException("Both startDate and endDate are required when filtering by date");
         }
-        if (!startDate.isBefore(endDate)) {
+        if (startDate.isAfter(endDate)) {
             throw new InvalidOperationException("startDate must be before endDate");
         }
     }
@@ -478,17 +449,9 @@ public class AdminAnalyticsServiceImpl implements AdminAnalyticsService {
         if (startDate == null || endDate == null) {
             throw new InvalidOperationException("Both startDate and endDate are required");
         }
-        if (!startDate.isBefore(endDate)) {
+        if (startDate.isAfter(endDate)) {
             throw new InvalidOperationException("startDate must be before endDate");
         }
     }
 
-    private int validateAndGetMonthIndex(String month) {
-        try {
-            return Month.valueOf(month.toUpperCase()).getValue();
-        } catch (IllegalArgumentException e) {
-            logger.error("Validation failed for month: {} - Invalid month name", month);
-            throw new InvalidOperationException("Invalid month name: " + month);
-        }
-    }
 }
