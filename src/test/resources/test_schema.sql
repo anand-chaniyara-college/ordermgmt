@@ -181,7 +181,7 @@ INSERT INTO test_ordermgmt.organization (org_id, name, subdomain, isactive, crea
     ('11111111-1111-1111-1111-111111111111','SYSTEM','systesting',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'SYSTEM','SYSTEM','SYSTEM GENERATED FOR SUPER ADMIN' );
 
 INSERT INTO test_ordermgmt.app_user ( userid, createdby, createdtimestamp, email, isactive, ispasswordchanged, passwordhash, updatedby, updatedtimestamp, roleid, org_id) VALUES
-    ('22222222-2222-2222-2222-222222222222', 'SYSTEM', CURRENT_TIMESTAMP, 'superadmin@super.com', true, true, 'hashedpassword123', 'SYSTEM', CURRENT_TIMESTAMP, 3, '11111111-1111-1111-1111-111111111111');
+    ('22222222-2222-2222-2222-222222222222', 'SYSTEM', CURRENT_TIMESTAMP, 'superadmin@superemail.com', true, true, '$2y$10$xqB/IbPkfb6uulzzoBJENeaiLxJ.iHE7S0zSVyUvPK8FiqtWDSXP.', 'SYSTEM', CURRENT_TIMESTAMP, 3, '11111111-1111-1111-1111-111111111111');
 -- =============================================================================
 -- 3) CONSTRAINTS (ADDED ONCE, WITH CONSISTENT NAMES)
 -- =============================================================================
