@@ -1,4 +1,4 @@
-package com.example.ordermgmt.integration;
+package com.example.ordermgmt.integration.old;
 
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateWrapperDTO;
@@ -207,7 +207,7 @@ class OrderFailureAndReportingIntegrationTest {
                 List.of(new OrderItemDTO(laptop.getItemId(), null, 1, null, null)));
 
         mockMvc.perform(put("/api/customer/orders/{orderId}/cancel", order.getOrderId())
-                        .with(customerUser("cancel-pending@example.com")))
+                .with(customerUser("cancel-pending@example.com")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderId").value(order.getOrderId().toString()))
                 .andExpect(jsonPath("$.status").value(OrderStatus.CANCELLED.name()));
@@ -238,7 +238,7 @@ class OrderFailureAndReportingIntegrationTest {
         updateOrderStatus(order.getOrderId(), OrderStatus.CONFIRMED.name());
 
         mockMvc.perform(put("/api/customer/orders/{orderId}/cancel", order.getOrderId())
-                        .with(customerUser("cancel-confirmed@example.com")))
+                .with(customerUser("cancel-confirmed@example.com")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Cannot cancel order " + order.getOrderId()
                         + ". Current status: " + OrderStatus.CONFIRMED.name()));
@@ -272,9 +272,9 @@ class OrderFailureAndReportingIntegrationTest {
                 new BulkOrderStatusUpdateDTO(failureOrder.getOrderId(), OrderStatus.CONFIRMED.name())));
 
         mockMvc.perform(put("/api/admin/orders/status")
-                        .with(adminUser())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .with(adminUser())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.successes[0].orderId").value(successOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.successes[0].status").value(OrderStatus.CONFIRMED.name()))
@@ -302,12 +302,12 @@ class OrderFailureAndReportingIntegrationTest {
         setOrderCreatedTimestamp(mouseOrder.getOrderId(), LocalDateTime.of(2026, 3, 5, 10, 0));
 
         mockMvc.perform(get("/api/org-admin/analytics/revenue-report")
-                        .with(orgAdminUser())
-                        .param("startdate", "2026-03-01")
-                        .param("enddate", "2026-03-09")
-                        .param("page", "0")
-                        .param("size", "1")
-                        .param("sendEmail", "true"))
+                .with(orgAdminUser())
+                .param("startdate", "2026-03-01")
+                .param("enddate", "2026-03-09")
+                .param("page", "0")
+                .param("size", "1")
+                .param("sendEmail", "true"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.startDate").value("2026-03-01"))
                 .andExpect(jsonPath("$.endDate").value("2026-03-09"))
@@ -336,18 +336,18 @@ class OrderFailureAndReportingIntegrationTest {
                 "analytics@example.com",
                 List.of(new OrderItemDTO(laptop.getItemId(), null, 1, null, null)));
         mockMvc.perform(put("/api/customer/orders/{orderId}/cancel", cancelledOrder.getOrderId())
-                        .with(customerUser("analytics@example.com")))
+                .with(customerUser("analytics@example.com")))
                 .andExpect(status().isOk());
 
         setOrderCreatedTimestamp(deliveredOrder.getOrderId(), LocalDateTime.of(2026, 3, 2, 11, 0));
         setOrderCreatedTimestamp(cancelledOrder.getOrderId(), LocalDateTime.of(2026, 3, 9, 16, 55));
 
         mockMvc.perform(get("/api/org-admin/analytics/order-analytics")
-                        .with(orgAdminUser())
-                        .param("startdate", "2026-03-01")
-                        .param("enddate", "2026-03-10")
-                        .param("itemname", "laptop")
-                        .param("orderstatus", "delivered, canceled"))
+                .with(orgAdminUser())
+                .param("startdate", "2026-03-01")
+                .param("enddate", "2026-03-10")
+                .param("itemname", "laptop")
+                .param("orderstatus", "delivered, canceled"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.startDate").value("2026-03-01"))
                 .andExpect(jsonPath("$.endDate").value("2026-03-10"))
@@ -361,17 +361,17 @@ class OrderFailureAndReportingIntegrationTest {
     @Test
     void sq53_invalidAnalyticsFilters_areRejected() throws Exception {
         mockMvc.perform(get("/api/org-admin/analytics/revenue-report")
-                        .with(orgAdminUser())
-                        .param("startdate", "2026-03-09")
-                        .param("enddate", "2026-03-01"))
+                .with(orgAdminUser())
+                .param("startdate", "2026-03-09")
+                .param("enddate", "2026-03-01"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("startDate must be before endDate"));
 
         mockMvc.perform(get("/api/org-admin/analytics/order-analytics")
-                        .with(orgAdminUser())
-                        .param("startdate", "2026-03-01")
-                        .param("enddate", "2026-03-10")
-                        .param("orderstatus", "BOGUS"))
+                .with(orgAdminUser())
+                .param("startdate", "2026-03-01")
+                .param("enddate", "2026-03-10")
+                .param("orderstatus", "BOGUS"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Invalid orderStatus: BOGUS"));
     }
@@ -381,9 +381,9 @@ class OrderFailureAndReportingIntegrationTest {
         OrderDTO request = new OrderDTO(null, null, null, null, null, items, null);
 
         mockMvc.perform(post("/api/customer/orders")
-                        .with(customerUser(email))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .with(customerUser(email))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString(expectedMessagePart)));
     }
@@ -392,9 +392,9 @@ class OrderFailureAndReportingIntegrationTest {
         OrderDTO request = new OrderDTO(null, null, null, null, null, items, null);
 
         MvcResult result = mockMvc.perform(post("/api/customer/orders")
-                        .with(customerUser(email))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .with(customerUser(email))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andReturn();
 
@@ -415,9 +415,9 @@ class OrderFailureAndReportingIntegrationTest {
                 List.of(new BulkOrderStatusUpdateDTO(orderId, newStatus)));
 
         mockMvc.perform(put("/api/admin/orders/status")
-                        .with(adminUser())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .with(adminUser())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
     }
 
@@ -472,7 +472,8 @@ class OrderFailureAndReportingIntegrationTest {
         }
     }
 
-    private InventoryItem seedInventory(String itemName, int availableStock, BigDecimal unitPrice, boolean withPricing) {
+    private InventoryItem seedInventory(String itemName, int availableStock, BigDecimal unitPrice,
+            boolean withPricing) {
         TenantContextHolder.setTenantId(ROOT_ORG_ID);
         try {
             InventoryItem inventoryItem = new InventoryItem();

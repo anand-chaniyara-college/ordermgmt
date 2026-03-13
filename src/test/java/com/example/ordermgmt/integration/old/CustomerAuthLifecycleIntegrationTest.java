@@ -1,4 +1,4 @@
-package com.example.ordermgmt.integration;
+package com.example.ordermgmt.integration.old;
 
 import com.example.ordermgmt.dto.ForgotPasswordRequestDTO;
 import com.example.ordermgmt.dto.LoginRequestDTO;
@@ -145,9 +145,9 @@ class CustomerAuthLifeIntegrationTest {
                 organization.getSubdomain());
 
         mockMvc.perform(post("/api/auth/register")
-                        .header("X-Forwarded-For", "10.0.0.1")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .header("X-Forwarded-For", "10.0.0.1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("Registration successful"));
 
@@ -174,9 +174,9 @@ class CustomerAuthLifeIntegrationTest {
                 ORG_SUBDOMAIN);
 
         mockMvc.perform(post("/api/auth/register")
-                        .header("X-Forwarded-For", "10.0.0.2")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .header("X-Forwarded-For", "10.0.0.2")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.message").value("Only CUSTOMER registration is allowed on this endpoint"));
 
@@ -190,11 +190,11 @@ class CustomerAuthLifeIntegrationTest {
         saveCustomerUser(CUSTOMER_EMAIL, "secret123", organization.getOrgId(), true);
 
         MvcResult result = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new LoginRequestDTO(
-                                organization.getSubdomain(),
-                                CUSTOMER_EMAIL,
-                                "secret123"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequestDTO(
+                        organization.getSubdomain(),
+                        CUSTOMER_EMAIL,
+                        "secret123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isString())
                 .andExpect(jsonPath("$.refreshToken").isString())
@@ -217,9 +217,9 @@ class CustomerAuthLifeIntegrationTest {
         String refreshToken = login.get("refreshToken").asText();
 
         MvcResult refreshResult = mockMvc.perform(post("/api/auth/refresh")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RefreshTokenRequestDTO(refreshToken))))
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new RefreshTokenRequestDTO(refreshToken))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").isString())
                 .andExpect(jsonPath("$.refreshToken").isString())
@@ -245,9 +245,9 @@ class CustomerAuthLifeIntegrationTest {
         String refreshToken = login.get("refreshToken").asText();
 
         mockMvc.perform(post("/api/auth/logout")
-                        .header("Authorization", "Bearer " + accessToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new RefreshTokenRequestDTO(refreshToken))))
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new RefreshTokenRequestDTO(refreshToken))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Logged out successfully"));
 
@@ -262,11 +262,11 @@ class CustomerAuthLifeIntegrationTest {
         String oldPasswordHash = user.getPasswordHash();
 
         mockMvc.perform(post("/api/auth/forgot-password")
-                        .header("X-Forwarded-For", "10.0.0.3")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new ForgotPasswordRequestDTO(
-                                CUSTOMER_EMAIL,
-                                organization.getSubdomain()))))
+                .header("X-Forwarded-For", "10.0.0.3")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ForgotPasswordRequestDTO(
+                        CUSTOMER_EMAIL,
+                        organization.getSubdomain()))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value(
                         "If an account matches, a temporary password has been sent to your email."));
@@ -280,12 +280,12 @@ class CustomerAuthLifeIntegrationTest {
         String temporaryPassword = (String) resetEvent.templateData().get("tempPassword");
 
         mockMvc.perform(patch("/api/auth/reset-password")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new ResetPasswordRequestDTO(
-                                CUSTOMER_EMAIL,
-                                organization.getSubdomain(),
-                                temporaryPassword,
-                                "newSecret123"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new ResetPasswordRequestDTO(
+                        CUSTOMER_EMAIL,
+                        organization.getSubdomain(),
+                        temporaryPassword,
+                        "newSecret123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Password has been successfully reset."));
 
@@ -296,11 +296,11 @@ class CustomerAuthLifeIntegrationTest {
         assertThat(stringRedisTemplate.hasKey(resetKey)).isFalse();
 
         mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new LoginRequestDTO(
-                                organization.getSubdomain(),
-                                CUSTOMER_EMAIL,
-                                "newSecret123"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequestDTO(
+                        organization.getSubdomain(),
+                        CUSTOMER_EMAIL,
+                        "newSecret123"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Login successful"));
     }
@@ -311,22 +311,22 @@ class CustomerAuthLifeIntegrationTest {
         saveCustomerUser(CUSTOMER_EMAIL, "secret123", organization.getOrgId(), true);
 
         mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new LoginRequestDTO(
-                                organization.getSubdomain(),
-                                CUSTOMER_EMAIL,
-                                "wrong-password"))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequestDTO(
+                        organization.getSubdomain(),
+                        CUSTOMER_EMAIL,
+                        "wrong-password"))))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.message").value("Invalid credentials"));
     }
 
     private JsonNode loginAndReadJson(String orgSubdomain, String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new LoginRequestDTO(
-                                orgSubdomain,
-                                email,
-                                password))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new LoginRequestDTO(
+                        orgSubdomain,
+                        email,
+                        password))))
                 .andExpect(status().isOk())
                 .andReturn();
 

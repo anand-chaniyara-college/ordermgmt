@@ -40,6 +40,7 @@ public class ProductServiceImpl implements ProductService {
         }
 
         List<ProductDTO> available = items.stream()
+                .filter(this::isAvailable)
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
 
@@ -53,8 +54,12 @@ public class ProductServiceImpl implements ProductService {
         logger.info("Processing getAvailableProducts (Page) for Customer - Page: {}, Size: {}",
                 pageable.getPageNumber(), pageable.getPageSize());
 
-        Page<ProductDTO> products = inventoryItemRepository.findAvailableWithPricing(pageable)
-                .map(this::convertToDTO);
+        Page<InventoryItem> page = inventoryItemRepository.findAvailableWithPricing(pageable);
+        List<ProductDTO> content = page.getContent().stream()
+                .filter(this::isAvailable)
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        Page<ProductDTO> products = new org.springframework.data.domain.PageImpl<>(content, pageable, page.getTotalElements());
 
         logger.info(
                 "getAvailableProducts (Page) completed successfully for Customer - Found {} products (page {} of {})",

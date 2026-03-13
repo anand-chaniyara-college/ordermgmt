@@ -1,4 +1,4 @@
-package com.example.ordermgmt.integration;
+package com.example.ordermgmt.integration.old;
 
 import com.example.ordermgmt.dto.CreateAdminRequestDTO;
 import com.example.ordermgmt.dto.UpdateUserStatusRequestDTO;
@@ -104,8 +104,8 @@ class OrgAdminManagementIntegrationTest {
         CreateAdminRequestDTO request = new CreateAdminRequestDTO("admin-a1@example.com", "secret123");
 
         mockMvc.perform(post("/api/org-admin/admins")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.email").value("admin-a1@example.com"))
                 .andExpect(jsonPath("$.role").value(ROLE_ADMIN))
@@ -151,8 +151,8 @@ class OrgAdminManagementIntegrationTest {
         AppUser admin = saveUser("admin-a1@example.com", ROLE_ADMIN, orgA.getOrgId(), true);
 
         mockMvc.perform(patch("/api/org-admin/admins/{id}/status", admin.getUserId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateUserStatusRequestDTO(false))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UpdateUserStatusRequestDTO(false))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Admin status updated successfully."));
 
@@ -170,8 +170,8 @@ class OrgAdminManagementIntegrationTest {
         CreateAdminRequestDTO duplicateRequest = new CreateAdminRequestDTO("admin-a1@example.com", "secret123");
 
         mockMvc.perform(post("/api/org-admin/admins")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(duplicateRequest)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(duplicateRequest)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Email already exists: admin-a1@example.com"));
 
@@ -187,8 +187,8 @@ class OrgAdminManagementIntegrationTest {
         AppUser foreignAdmin = saveUser("admin-b1@example.com", ROLE_ADMIN, orgB.getOrgId(), true);
 
         mockMvc.perform(patch("/api/org-admin/admins/{id}/status", foreignAdmin.getUserId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateUserStatusRequestDTO(false))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UpdateUserStatusRequestDTO(false))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Cross-organization admin update is not allowed"));
 
@@ -205,8 +205,8 @@ class OrgAdminManagementIntegrationTest {
         CreateAdminRequestDTO request = new CreateAdminRequestDTO("admin-a1@example.com", "secret123");
 
         mockMvc.perform(post("/api/org-admin/admins")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Requester is not ORG_ADMIN"));
 
@@ -219,8 +219,8 @@ class OrgAdminManagementIntegrationTest {
         CreateAdminRequestDTO request = new CreateAdminRequestDTO("admin-a1@example.com", "secret123");
 
         mockMvc.perform(post("/api/org-admin/admins")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
     }
 

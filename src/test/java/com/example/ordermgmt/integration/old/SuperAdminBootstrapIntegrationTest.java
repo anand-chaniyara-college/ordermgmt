@@ -1,4 +1,4 @@
-package com.example.ordermgmt.integration;
+package com.example.ordermgmt.integration.old;
 
 import com.example.ordermgmt.dto.CreateOrgAdminRequestDTO;
 import com.example.ordermgmt.dto.CreateOrganizationRequestDTO;
@@ -105,8 +105,8 @@ class SuperAdminBootstrapIntegrationTest {
                 "Primary tenant for bootstrap flow");
 
         MvcResult result = mockMvc.perform(post("/api/super-admin/organizations")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.name").value("Acme Corporation"))
                 .andExpect(jsonPath("$.subdomain").value("acme"))
@@ -177,8 +177,8 @@ class SuperAdminBootstrapIntegrationTest {
         AppUser orgAdmin = saveOrgAdmin("org-admin-a@example.com", orgA.getOrgId(), true);
 
         mockMvc.perform(patch("/api/super-admin/org-admins/{id}/status", orgAdmin.getUserId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateUserStatusRequestDTO(false))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UpdateUserStatusRequestDTO(false))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Org Admin status updated successfully."));
 
@@ -192,8 +192,8 @@ class SuperAdminBootstrapIntegrationTest {
         Organization orgB = organizationRepository.save(buildOrganization("Org Beta", "org-beta", true));
 
         mockMvc.perform(patch("/api/super-admin/organizations/{id}/status", orgB.getOrgId())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(new UpdateOrganizationStatusRequestDTO(false))))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UpdateOrganizationStatusRequestDTO(false))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.message").value("Organization status updated successfully."));
 
@@ -212,8 +212,8 @@ class SuperAdminBootstrapIntegrationTest {
                 "Conflicting subdomain");
 
         mockMvc.perform(post("/api/super-admin/organizations")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(duplicateRequest)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(duplicateRequest)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Organization subdomain already exists: acme"));
 
@@ -229,8 +229,8 @@ class SuperAdminBootstrapIntegrationTest {
                 null);
 
         mockMvc.perform(post("/api/super-admin/org-admins")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("orgId is required"));
 

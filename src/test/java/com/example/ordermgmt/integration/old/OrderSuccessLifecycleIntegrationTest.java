@@ -1,4 +1,4 @@
-package com.example.ordermgmt.integration;
+package com.example.ordermgmt.integration.old;
 
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateDTO;
 import com.example.ordermgmt.dto.BulkOrderStatusUpdateWrapperDTO;
@@ -155,7 +155,8 @@ class OrderSuccessLifecycleIntegrationTest {
         seedCustomer(CUSTOMER_EMAIL);
         InventoryItem laptop = seedInventoryWithPricing("Laptop", 10, new BigDecimal("999.99"));
 
-        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL, List.of(new OrderItemDTO(laptop.getItemId(), null, 2, null, null)));
+        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL,
+                List.of(new OrderItemDTO(laptop.getItemId(), null, 2, null, null)));
 
         Orders savedOrder = ordersRepository.findById(createdOrder.getOrderId()).orElseThrow();
         List<OrderItem> savedItems = orderItemRepository.findByOrderOrderId(createdOrder.getOrderId());
@@ -183,26 +184,27 @@ class OrderSuccessLifecycleIntegrationTest {
     void sq35_sq36_customerCanListOwnOrders_byListByIdAndPage() throws Exception {
         seedCustomer(CUSTOMER_EMAIL);
         InventoryItem laptop = seedInventoryWithPricing("Laptop", 10, new BigDecimal("999.99"));
-        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL, List.of(new OrderItemDTO(laptop.getItemId(), null, 1, null, null)));
+        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL,
+                List.of(new OrderItemDTO(laptop.getItemId(), null, 1, null, null)));
 
         mockMvc.perform(get("/api/customer/orders")
-                        .with(customerUser(CUSTOMER_EMAIL)))
+                .with(customerUser(CUSTOMER_EMAIL)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orders[0].orderId").value(createdOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.orders[0].status").value(OrderStatus.PENDING.name()))
                 .andExpect(jsonPath("$.orders[0].items[0].itemName").value("Laptop"));
 
         mockMvc.perform(get("/api/customer/orders")
-                        .with(customerUser(CUSTOMER_EMAIL))
-                        .param("orderId", createdOrder.getOrderId().toString()))
+                .with(customerUser(CUSTOMER_EMAIL))
+                .param("orderId", createdOrder.getOrderId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orders[0].orderId").value(createdOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.orders[0].status").value(OrderStatus.PENDING.name()));
 
         mockMvc.perform(get("/api/customer/orders")
-                        .with(customerUser(CUSTOMER_EMAIL))
-                        .param("page", "0")
-                        .param("size", "5"))
+                .with(customerUser(CUSTOMER_EMAIL))
+                .param("page", "0")
+                .param("size", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderId").value(createdOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.content[0].status").value(OrderStatus.PENDING.name()));
@@ -212,25 +214,26 @@ class OrderSuccessLifecycleIntegrationTest {
     void sq37_adminCanListAllOrders_byListByIdAndPage() throws Exception {
         seedCustomer(CUSTOMER_EMAIL);
         InventoryItem laptop = seedInventoryWithPricing("Laptop", 10, new BigDecimal("999.99"));
-        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL, List.of(new OrderItemDTO(laptop.getItemId(), null, 1, null, null)));
+        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL,
+                List.of(new OrderItemDTO(laptop.getItemId(), null, 1, null, null)));
 
         mockMvc.perform(get("/api/admin/orders")
-                        .with(adminUser()))
+                .with(adminUser()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orders[0].orderId").value(createdOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.orders[0].status").value(OrderStatus.PENDING.name()));
 
         mockMvc.perform(get("/api/admin/orders")
-                        .with(adminUser())
-                        .param("orderId", createdOrder.getOrderId().toString()))
+                .with(adminUser())
+                .param("orderId", createdOrder.getOrderId().toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orders[0].orderId").value(createdOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.orders[0].status").value(OrderStatus.PENDING.name()));
 
         mockMvc.perform(get("/api/admin/orders")
-                        .with(adminUser())
-                        .param("page", "0")
-                        .param("size", "5"))
+                .with(adminUser())
+                .param("page", "0")
+                .param("size", "5"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].orderId").value(createdOrder.getOrderId().toString()))
                 .andExpect(jsonPath("$.content[0].status").value(OrderStatus.PENDING.name()));
@@ -240,7 +243,8 @@ class OrderSuccessLifecycleIntegrationTest {
     void sq38_sq41_bulkAdminTransitions_moveOrderFromPendingToDeliveredAndAdjustInventory() throws Exception {
         seedCustomer(CUSTOMER_EMAIL);
         InventoryItem laptop = seedInventoryWithPricing("Laptop", 10, new BigDecimal("999.99"));
-        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL, List.of(new OrderItemDTO(laptop.getItemId(), null, 3, null, null)));
+        OrderDTO createdOrder = createOrder(CUSTOMER_EMAIL,
+                List.of(new OrderItemDTO(laptop.getItemId(), null, 3, null, null)));
 
         updateOrderStatus(createdOrder.getOrderId(), OrderStatus.CONFIRMED.name());
         assertOrderAndInventoryState(createdOrder.getOrderId(), laptop.getItemId(), OrderStatus.CONFIRMED, 7, 3);
@@ -286,9 +290,9 @@ class OrderSuccessLifecycleIntegrationTest {
                 new BulkOrderStatusUpdateDTO(orderId, newStatus)));
 
         mockMvc.perform(put("/api/admin/orders/status")
-                        .with(adminUser())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .with(adminUser())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.successes[0].orderId").value(orderId.toString()))
                 .andExpect(jsonPath("$.successes[0].status").value(newStatus))
@@ -299,9 +303,9 @@ class OrderSuccessLifecycleIntegrationTest {
         OrderDTO request = new OrderDTO(null, null, null, null, null, items, null);
 
         MvcResult result = mockMvc.perform(post("/api/customer/orders")
-                        .with(customerUser(customerEmail))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
+                .with(customerUser(customerEmail))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value(OrderStatus.PENDING.name()))
                 .andReturn();
