@@ -84,7 +84,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         SqlScriptsTestExecutionListener.class,
         EventPublishingTestExecutionListener.class
 })
-class CustomerAuthLifeIntegrationTest {
+class CustomerAuthLifecycleIntegrationTest {
 
     private static final String ROLE_CUSTOMER = "CUSTOMER";
     private static final String ORG_SUBDOMAIN = "acme";
