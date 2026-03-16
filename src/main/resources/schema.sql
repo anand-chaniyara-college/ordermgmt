@@ -153,41 +153,6 @@ CREATE TABLE IF NOT EXISTS ordermgmt.EMAIL_LOG (
     org_id uuid NOT NULL
 );
 -- =============================================================================
--- a)Lookup data
--- =============================================================================
--- Insert order status lookup data
-INSERT INTO ordermgmt.ORDER_STATUS_LOOKUP (statusid, createdby, createdtimestamp, statusname, updatedby, updatedtimestamp)
-VALUES
-    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'PENDING', 'SYSTEM', CURRENT_TIMESTAMP),
-    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CONFIRMED', 'SYSTEM', CURRENT_TIMESTAMP),
-    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'PROCESSING', 'SYSTEM', CURRENT_TIMESTAMP),
-    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'SHIPPED', 'SYSTEM', CURRENT_TIMESTAMP),
-    (5, 'SYSTEM', CURRENT_TIMESTAMP, 'DELIVERED', 'SYSTEM', CURRENT_TIMESTAMP),
-    (6, 'SYSTEM', CURRENT_TIMESTAMP, 'CANCELLED', 'SYSTEM', CURRENT_TIMESTAMP)
-ON CONFLICT (statusid) DO NOTHING;
-
--- Insert user role data
-INSERT INTO ordermgmt.USER_ROLE (roleid, createdby, createdtimestamp, rolename, updatedby, updatedtimestamp)
-VALUES
-    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
-    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CUSTOMER', 'SYSTEM', CURRENT_TIMESTAMP),
-    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'SUPER_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
-    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'ORG_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP)
-ON CONFLICT (roleid) DO NOTHING;
-
--- Note: Add ON CONFLICT clauses if you have unique constraints on these tables
-
-INSERT INTO ordermgmt.ORGANIZATION
-(org_id, name, subdomain, isactive, createdtimestamp, updatedtimestamp, createdby, updatedby, description)
-VALUES ('00000000-0000-0000-0000-000000000001', 'system', 'system', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'SYSTEM', 'SYSTEM', 'system')
-ON CONFLICT (org_id) DO NOTHING;
-INSERT INTO ordermgmt.APP_USER (
-    userid, createdby, createdtimestamp, email, isactive, ispasswordchanged, passwordhash, updatedby, updatedtimestamp, roleid, org_id
-) VALUES ('00000000-0000-0000-0000-000000000002','SYSTEM',CURRENT_TIMESTAMP,'superadmin@superemail.com',
-     true,true,'$2y$10$xqB/IbPkfb6uulzzoBJENeaiLxJ.iHE7S0zSVyUvPK8FiqtWDSXP.','SYSTEM',
-     CURRENT_TIMESTAMP,3,'00000000-0000-0000-0000-000000000001')
-ON CONFLICT (userid) DO NOTHING;
--- =============================================================================
 -- 3) CONSTRAINTS (ADDED ONCE, WITH CONSISTENT NAMES)
 -- =============================================================================
 
@@ -307,6 +272,41 @@ ALTER TABLE ONLY ordermgmt.PRICING_CATALOG
     ADD CONSTRAINT fk_pricing_catalog_item
     FOREIGN KEY (itemid) REFERENCES ordermgmt.INVENTORY_ITEM(itemid)
     ON UPDATE CASCADE ON DELETE RESTRICT;
+
+-- =============================================================================
+-- a) LOOKUP DATA
+-- =============================================================================
+-- Insert order status lookup data
+INSERT INTO ordermgmt.ORDER_STATUS_LOOKUP (statusid, createdby, createdtimestamp, statusname, updatedby, updatedtimestamp)
+VALUES
+    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'PENDING', 'SYSTEM', CURRENT_TIMESTAMP),
+    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CONFIRMED', 'SYSTEM', CURRENT_TIMESTAMP),
+    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'PROCESSING', 'SYSTEM', CURRENT_TIMESTAMP),
+    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'SHIPPED', 'SYSTEM', CURRENT_TIMESTAMP),
+    (5, 'SYSTEM', CURRENT_TIMESTAMP, 'DELIVERED', 'SYSTEM', CURRENT_TIMESTAMP),
+    (6, 'SYSTEM', CURRENT_TIMESTAMP, 'CANCELLED', 'SYSTEM', CURRENT_TIMESTAMP)
+ON CONFLICT (statusid) DO NOTHING;
+
+-- Insert user role data
+INSERT INTO ordermgmt.USER_ROLE (roleid, createdby, createdtimestamp, rolename, updatedby, updatedtimestamp)
+VALUES
+    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
+    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CUSTOMER', 'SYSTEM', CURRENT_TIMESTAMP),
+    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'SUPER_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
+    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'ORG_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP)
+ON CONFLICT (roleid) DO NOTHING;
+
+INSERT INTO ordermgmt.ORGANIZATION
+(org_id, name, subdomain, isactive, createdtimestamp, updatedtimestamp, createdby, updatedby, description)
+VALUES ('00000000-0000-0000-0000-000000000001', 'system', 'system', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 'SYSTEM', 'SYSTEM', 'system')
+ON CONFLICT (org_id) DO NOTHING;
+
+INSERT INTO ordermgmt.APP_USER (
+    userid, createdby, createdtimestamp, email, isactive, ispasswordchanged, passwordhash, updatedby, updatedtimestamp, roleid, org_id
+) VALUES ('00000000-0000-0000-0000-000000000002','SYSTEM',CURRENT_TIMESTAMP,'superadmin@superemail.com',
+     true,true,'$2y$10$xqB/IbPkfb6uulzzoBJENeaiLxJ.iHE7S0zSVyUvPK8FiqtWDSXP.','SYSTEM',
+     CURRENT_TIMESTAMP,3,'00000000-0000-0000-0000-000000000001')
+ON CONFLICT (userid) DO NOTHING;
 
 -- =============================================================================
 -- 4) INDEXES (ADDED ONCE)
