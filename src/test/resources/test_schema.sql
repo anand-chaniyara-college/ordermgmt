@@ -152,36 +152,7 @@ CREATE TABLE IF NOT EXISTS test_ordermgmt.email_log (
     subject character varying(255),
     org_id uuid NOT NULL
     );
--- =============================================================================
--- a)Lookup data
--- =============================================================================
--- Insert order status lookup data
-INSERT INTO test_ordermgmt.order_status_lookup (statusid, createdby, createdtimestamp, statusname, updatedby, updatedtimestamp)
-VALUES
-    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'PENDING', 'SYSTEM', CURRENT_TIMESTAMP),
-    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CONFIRMED', 'SYSTEM', CURRENT_TIMESTAMP),
-    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'PROCESSING', 'SYSTEM', CURRENT_TIMESTAMP),
-    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'SHIPPED', 'SYSTEM', CURRENT_TIMESTAMP),
-    (5, 'SYSTEM', CURRENT_TIMESTAMP, 'DELIVERED', 'SYSTEM', CURRENT_TIMESTAMP),
-    (6, 'SYSTEM', CURRENT_TIMESTAMP, 'CANCELLED', 'SYSTEM', CURRENT_TIMESTAMP)
-    ON CONFLICT (statusid) DO NOTHING;
 
--- Insert user role data
-INSERT INTO test_ordermgmt.user_role (roleid, createdby, createdtimestamp, rolename, updatedby, updatedtimestamp)
-VALUES
-    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
-    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CUSTOMER', 'SYSTEM', CURRENT_TIMESTAMP),
-    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'SUPER_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
-    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'ORG_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP)
-    ON CONFLICT (roleid) DO NOTHING;
-
--- Note: Add ON CONFLICT clauses if you have unique constraints on these tables
-
-INSERT INTO test_ordermgmt.organization (org_id, name, subdomain, isactive, createdtimestamp, updatedtimestamp, createdby, updatedby,description) VALUES
-    ('11111111-1111-1111-1111-111111111111','SYSTEM','systesting',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'SYSTEM','SYSTEM','SYSTEM GENERATED FOR SUPER ADMIN' );
-
-INSERT INTO test_ordermgmt.app_user ( userid, createdby, createdtimestamp, email, isactive, ispasswordchanged, passwordhash, updatedby, updatedtimestamp, roleid, org_id) VALUES
-    ('22222222-2222-2222-2222-222222222222', 'SYSTEM', CURRENT_TIMESTAMP, 'superadmin@superemail.com', true, true, '$2y$10$xqB/IbPkfb6uulzzoBJENeaiLxJ.iHE7S0zSVyUvPK8FiqtWDSXP.', 'SYSTEM', CURRENT_TIMESTAMP, 3, '11111111-1111-1111-1111-111111111111');
 -- =============================================================================
 -- 3) CONSTRAINTS (ADDED ONCE, WITH CONSISTENT NAMES)
 -- =============================================================================
@@ -354,3 +325,34 @@ CREATE TRIGGER trg_pricing_history_no_delete
     BEFORE DELETE ON test_ordermgmt.pricing_history
     FOR EACH ROW
     EXECUTE FUNCTION test_ordermgmt.prevent_pricing_history_modification();
+
+
+-- =============================================================================
+-- 6) LOOKUP DATA
+-- =============================================================================
+
+-- Insert order status lookup data
+INSERT INTO test_ordermgmt.order_status_lookup (statusid, createdby, createdtimestamp, statusname, updatedby, updatedtimestamp)
+VALUES
+    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'PENDING', 'SYSTEM', CURRENT_TIMESTAMP),
+    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CONFIRMED', 'SYSTEM', CURRENT_TIMESTAMP),
+    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'PROCESSING', 'SYSTEM', CURRENT_TIMESTAMP),
+    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'SHIPPED', 'SYSTEM', CURRENT_TIMESTAMP),
+    (5, 'SYSTEM', CURRENT_TIMESTAMP, 'DELIVERED', 'SYSTEM', CURRENT_TIMESTAMP),
+    (6, 'SYSTEM', CURRENT_TIMESTAMP, 'CANCELLED', 'SYSTEM', CURRENT_TIMESTAMP)
+    ON CONFLICT (statusid) DO NOTHING;
+
+-- Insert user role data
+INSERT INTO test_ordermgmt.user_role (roleid, createdby, createdtimestamp, rolename, updatedby, updatedtimestamp)
+VALUES
+    (1, 'SYSTEM', CURRENT_TIMESTAMP, 'ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
+    (2, 'SYSTEM', CURRENT_TIMESTAMP, 'CUSTOMER', 'SYSTEM', CURRENT_TIMESTAMP),
+    (3, 'SYSTEM', CURRENT_TIMESTAMP, 'SUPER_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP),
+    (4, 'SYSTEM', CURRENT_TIMESTAMP, 'ORG_ADMIN', 'SYSTEM', CURRENT_TIMESTAMP)
+    ON CONFLICT (roleid) DO NOTHING;
+
+INSERT INTO test_ordermgmt.organization (org_id, name, subdomain, isactive, createdtimestamp, updatedtimestamp, createdby, updatedby,description) VALUES
+    ('11111111-1111-1111-1111-111111111111','SYSTEM','systesting',true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'SYSTEM','SYSTEM','SYSTEM GENERATED FOR SUPER ADMIN' );
+
+INSERT INTO test_ordermgmt.app_user ( userid, createdby, createdtimestamp, email, isactive, ispasswordchanged, passwordhash, updatedby, updatedtimestamp, roleid, org_id) VALUES
+    ('22222222-2222-2222-2222-222222222222', 'SYSTEM', CURRENT_TIMESTAMP, 'superadmin@superemail.com', true, true, '$2y$10$xqB/IbPkfb6uulzzoBJENeaiLxJ.iHE7S0zSVyUvPK8FiqtWDSXP.', 'SYSTEM', CURRENT_TIMESTAMP, 3, '11111111-1111-1111-1111-111111111111');
