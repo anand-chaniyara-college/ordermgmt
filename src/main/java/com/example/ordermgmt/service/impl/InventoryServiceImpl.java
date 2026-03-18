@@ -16,7 +16,10 @@ import com.example.ordermgmt.dto.AddStockRequestDTO;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -96,27 +99,45 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     public List<UUID> updateInventoryItems(List<InventoryItemDTO> items) {
         logger.info("Processing updateInventoryItems for {} items", items.size());
+
+        List<UUID> itemIds = items.stream()
+                .map(InventoryItemDTO::getItemId)
+                .filter(Objects::nonNull)
+                .sorted()
+                .collect(Collectors.toList());
+
+        if (itemIds.size() != items.size()) {
+            throw new InvalidOperationException("Item ID is required for update");
+        }
+
+        // 1. Lock all items at once to prevent deadlocks and race conditions
+        Map<UUID, InventoryItem> lockedItems = inventoryItemRepository.findAllByItemIdInForUpdate(itemIds)
+                .stream()
+                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
+
         List<InventoryItem> entitiesToUpdate = new ArrayList<>();
         List<UUID> updatedIds = new ArrayList<>();
 
         for (InventoryItemDTO dto : items) {
-            if (dto.getItemId() == null) {
-                throw new InvalidOperationException("Item ID is required for update");
+            InventoryItem existingItem = lockedItems.get(dto.getItemId());
+            if (existingItem == null) {
+                logger.warn("Skipping updateInventoryItems - Item {} not found", dto.getItemId());
+                throw new ResourceNotFoundException("Inventory Item not found with ID: " + dto.getItemId());
             }
-            InventoryItem existingItem = inventoryItemRepository.findById(dto.getItemId())
-                    .orElseThrow(() -> {
-                        logger.warn("Skipping updateInventoryItems - Item {} not found", dto.getItemId());
-                        return new ResourceNotFoundException("Inventory Item not found with ID: " + dto.getItemId());
-                    });
 
-            // Conditional update for itemName
+            // 2. Validate consistency: New Total Stock (Available) >= Currently Reserved
+            if (dto.getAvailableStock() < existingItem.getReservedStock()) {
+                throw new InvalidOperationException(String.format(
+                        "Cannot update item '%s'. New available stock (%d) is less than currently reserved stock (%d).",
+                        existingItem.getItemName(),
+                        dto.getAvailableStock(), existingItem.getReservedStock()));
+            }
+
             if (dto.getItemName() != null && !dto.getItemName().trim().isEmpty()) {
                 existingItem.setItemName(dto.getItemName());
             }
 
-            // Always update availableStock
             existingItem.setAvailableStock(dto.getAvailableStock());
-
             entitiesToUpdate.add(existingItem);
             updatedIds.add(dto.getItemId());
         }
@@ -130,29 +151,50 @@ public class InventoryServiceImpl implements InventoryService {
     public void deleteInventoryItems(List<UUID> itemIds) {
         logger.info("Processing deleteInventoryItems for IDs: {}", itemIds);
 
-        for (UUID id : itemIds) {
-            if (!inventoryItemRepository.existsById(id)) {
-                logger.warn("Skipping deleteInventoryItems - Item {} not found", id);
-                throw new ResourceNotFoundException("Inventory Item not found with ID: " + id);
+        // 1. Sort and Lock items before deletion check
+        List<UUID> sortedIds = itemIds.stream().sorted().collect(Collectors.toList());
+        List<InventoryItem> itemsToDelete = inventoryItemRepository.findAllByItemIdInForUpdate(sortedIds);
+
+        if (itemsToDelete.size() != itemIds.size()) {
+            throw new ResourceNotFoundException("One or more inventory items not found for deletion");
+        }
+
+        // 2. Prevent deletion of items with active reservations
+        for (InventoryItem item : itemsToDelete) {
+            if (item.getReservedStock() > 0) {
+                throw new InvalidOperationException(String.format(
+                        "Cannot delete item '%s' (ID: %s) because it has %d units currently reserved for orders.",
+                        item.getItemName(), item.getItemId(), item.getReservedStock()));
             }
         }
 
-        inventoryItemRepository.deleteAllById(itemIds);
+        inventoryItemRepository.deleteAll(itemsToDelete);
         logger.info("deleteInventoryItems completed successfully for {} items", itemIds.size());
     }
 
     @Override
     public List<UUID> addStock(List<AddStockRequestDTO> items) {
         logger.info("Processing addStock for {} items", items.size());
+
+        List<UUID> itemIds = items.stream()
+                .map(AddStockRequestDTO::getItemId)
+                .sorted()
+                .collect(Collectors.toList());
+
+        // 1. Lock all items to prevent race conditions during bulk add
+        Map<UUID, InventoryItem> lockedItems = inventoryItemRepository.findAllByItemIdInForUpdate(itemIds)
+                .stream()
+                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
+
         List<InventoryItem> entitiesToUpdate = new ArrayList<>();
         List<UUID> updatedIds = new ArrayList<>();
 
         for (AddStockRequestDTO dto : items) {
-            InventoryItem existingItem = inventoryItemRepository.findById(dto.getItemId())
-                    .orElseThrow(() -> {
-                        logger.warn("Skipping addStock - Item {} not found", dto.getItemId());
-                        return new ResourceNotFoundException("Inventory Item not found with ID: " + dto.getItemId());
-                    });
+            InventoryItem existingItem = lockedItems.get(dto.getItemId());
+            if (existingItem == null) {
+                logger.warn("Skipping addStock - Item {} not found", dto.getItemId());
+                throw new ResourceNotFoundException("Inventory Item not found with ID: " + dto.getItemId());
+            }
 
             existingItem.setAvailableStock(existingItem.getAvailableStock() + dto.getAddStock());
 
