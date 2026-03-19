@@ -148,7 +148,7 @@ class InventoryServiceImplTest {
     void updateInventoryItems_WithValidItems_UpdatesSuccessfully() {
         InventoryItemDTO updateDTO = new InventoryItemDTO(itemId, "Updated Name", 200, 20);
         
-        when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.of(inventoryItem));
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(List.of(itemId))).thenReturn(List.of(inventoryItem));
 
         List<UUID> result = inventoryService.updateInventoryItems(List.of(updateDTO));
 
@@ -171,7 +171,7 @@ class InventoryServiceImplTest {
     void updateInventoryItems_WithNonExistingItem_ThrowsException() {
         InventoryItemDTO updateDTO = new InventoryItemDTO(itemId, "Updated Name", 200, 20);
         
-        when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.empty());
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(List.of(itemId))).thenReturn(List.of());
 
         assertThrows(ResourceNotFoundException.class, () -> 
                 inventoryService.updateInventoryItems(List.of(updateDTO)));
@@ -181,7 +181,7 @@ class InventoryServiceImplTest {
     void updateInventoryItems_WithNullItemName_KeepsExistingName() {
         InventoryItemDTO updateDTO = new InventoryItemDTO(itemId, null, 200, 20);
         
-        when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.of(inventoryItem));
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(List.of(itemId))).thenReturn(List.of(inventoryItem));
 
         inventoryService.updateInventoryItems(List.of(updateDTO));
 
@@ -191,16 +191,17 @@ class InventoryServiceImplTest {
 
     @Test
     void deleteInventoryItems_WithExistingItems_DeletesSuccessfully() {
-        when(inventoryItemRepository.existsById(itemId)).thenReturn(true);
+        inventoryItem.setReservedStock(0);
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(List.of(itemId))).thenReturn(List.of(inventoryItem));
 
         inventoryService.deleteInventoryItems(List.of(itemId));
 
-        verify(inventoryItemRepository).deleteAllById(List.of(itemId));
+        verify(inventoryItemRepository).deleteAll(List.of(inventoryItem));
     }
 
     @Test
     void deleteInventoryItems_WithNonExistingItem_ThrowsException() {
-        when(inventoryItemRepository.existsById(itemId)).thenReturn(false);
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(List.of(itemId))).thenReturn(List.of());
 
         assertThrows(ResourceNotFoundException.class, () -> 
                 inventoryService.deleteInventoryItems(List.of(itemId)));
@@ -210,7 +211,7 @@ class InventoryServiceImplTest {
     void addStock_WithValidItems_AddsStockSuccessfully() {
         AddStockRequestDTO addStockRequest = new AddStockRequestDTO(itemId, 50);
         
-        when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.of(inventoryItem));
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(List.of(itemId))).thenReturn(List.of(inventoryItem));
 
         List<UUID> result = inventoryService.addStock(List.of(addStockRequest));
 
@@ -223,8 +224,6 @@ class InventoryServiceImplTest {
     void addStock_WithNonExistingItem_ThrowsException() {
         AddStockRequestDTO addStockRequest = new AddStockRequestDTO(itemId, 50);
         
-        when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.empty());
-
         assertThrows(ResourceNotFoundException.class, () -> 
                 inventoryService.addStock(List.of(addStockRequest)));
     }
@@ -239,8 +238,8 @@ class InventoryServiceImplTest {
         AddStockRequestDTO request1 = new AddStockRequestDTO(itemId, 50);
         AddStockRequestDTO request2 = new AddStockRequestDTO(itemId2, 100);
         
-        when(inventoryItemRepository.findById(itemId)).thenReturn(Optional.of(inventoryItem));
-        when(inventoryItemRepository.findById(itemId2)).thenReturn(Optional.of(item2));
+        when(inventoryItemRepository.findAllByItemIdInForUpdate(anyList()))
+                .thenReturn(List.of(inventoryItem, item2));
 
         List<UUID> result = inventoryService.addStock(List.of(request1, request2));
 

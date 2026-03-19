@@ -129,8 +129,8 @@ class OrderInventoryManagerImplTest {
 
     @Test
     void processAndSaveOrderItems_WithInsufficientStock_ThrowsException() {
-        inventoryItem1.setAvailableStock(10);
-        inventoryItem1.setReservedStock(8); // effective available = 2
+        inventoryItem1.setAvailableStock(2);
+        inventoryItem1.setReservedStock(8);
         orderItemDTO1 = new OrderItemDTO(itemId1, "Item 1", 5, BigDecimal.valueOf(99.99), BigDecimal.valueOf(499.95));
 
         when(inventoryRepository.findAllByItemIdInForUpdate(anyList()))
@@ -158,7 +158,7 @@ class OrderInventoryManagerImplTest {
     }
 
     @Test
-    void handleInventoryUpdate_PendingToConfirmed_UpdatesStockCorrectly() {
+    void handleInventoryUpdate_PendingToConfirmed_DoesNotChangeInventory() {
         List<OrderItem> orderItems = List.of(
                 createOrderItem(order, inventoryItem1, 5),
                 createOrderItem(order, inventoryItem2, 10)
@@ -170,27 +170,31 @@ class OrderInventoryManagerImplTest {
 
         orderInventoryManager.handleInventoryUpdate(order, OrderStatus.PENDING, OrderStatus.CONFIRMED);
 
-        assertEquals(95, inventoryItem1.getAvailableStock()); // 100 - 5
-        assertEquals(25, inventoryItem1.getReservedStock()); // 20 + 5
-        assertEquals(190, inventoryItem2.getAvailableStock()); // 200 - 10
-        assertEquals(40, inventoryItem2.getReservedStock()); // 30 + 10
+        assertEquals(100, inventoryItem1.getAvailableStock());
+        assertEquals(20, inventoryItem1.getReservedStock());
+        assertEquals(200, inventoryItem2.getAvailableStock());
+        assertEquals(30, inventoryItem2.getReservedStock());
 
-        verify(inventoryRepository, times(2)).save(any(InventoryItem.class));
+        verify(inventoryRepository, never()).save(any(InventoryItem.class));
     }
 
     @Test
-    void handleInventoryUpdate_PendingToConfirmed_WithInsufficientStock_ThrowsException() {
+    void handleInventoryUpdate_PendingToConfirmed_WithExistingReservation_DoesNotRecheckStock() {
         inventoryItem1.setAvailableStock(10);
-        inventoryItem1.setReservedStock(8); // effective available = 2
-        
+        inventoryItem1.setReservedStock(8);
+
         List<OrderItem> orderItems = List.of(createOrderItem(order, inventoryItem1, 5));
 
         when(orderItemRepository.findByOrderOrderId(orderId)).thenReturn(orderItems);
         when(inventoryRepository.findAllByItemIdInForUpdate(anyList()))
                 .thenReturn(List.of(inventoryItem1));
 
-        assertThrows(InsufficientStockException.class, () ->
+        assertDoesNotThrow(() ->
                 orderInventoryManager.handleInventoryUpdate(order, OrderStatus.PENDING, OrderStatus.CONFIRMED));
+
+        assertEquals(10, inventoryItem1.getAvailableStock());
+        assertEquals(8, inventoryItem1.getReservedStock());
+        verify(inventoryRepository, never()).save(any(InventoryItem.class));
     }
 
     @Test
@@ -255,9 +259,9 @@ class OrderInventoryManagerImplTest {
 
         orderInventoryManager.handleInventoryUpdate(order, OrderStatus.PENDING, OrderStatus.CANCELLED);
 
-        assertEquals(100, inventoryItem1.getAvailableStock()); // unchanged
-        assertEquals(20, inventoryItem1.getReservedStock()); // unchanged
-        verify(inventoryRepository, never()).save(any());
+        assertEquals(105, inventoryItem1.getAvailableStock()); // reservation reverted
+        assertEquals(15, inventoryItem1.getReservedStock());
+        verify(inventoryRepository).save(any());
     }
 
     @Test

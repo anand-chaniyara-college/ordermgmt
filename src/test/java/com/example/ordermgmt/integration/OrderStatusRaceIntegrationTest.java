@@ -222,6 +222,9 @@ public class OrderStatusRaceIntegrationTest {
         long duration = System.currentTimeMillis() - startTime;
 
         executor.shutdown();
+        if (!completed || !executor.awaitTermination(5, TimeUnit.SECONDS)) {
+            executor.shutdownNow();
+        }
 
         // ────────────────────────────────────────────────────────────
         // ASSERTIONS AND VERIFICATION

@@ -26,7 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Covers the full admin-driven order lifecycle:
  * PENDING → CONFIRMED → PROCESSING → SHIPPED → DELIVERED
  * Including negative paths for illegal status transitions,
- * timestamp verification, and stock deduction/reservation behavior.
+ * timestamp verification, and stock reservation/finalization behavior.
  *
  * Prerequisites: AuthIntegrationTest must have run first to create
  * the 'enterprise' org, ORG_ADMIN, ADMIN, and CUSTOMER users.
@@ -212,7 +212,7 @@ public class OrderLifecycleIntegrationTest {
 
         @Test
         @Order(7)
-        @DisplayName("1.2 Verify reserved stock increased after order placement")
+        @DisplayName("1.2 Verify stock moved from available to reserved after order placement")
         void verifyReservedStockAfterOrder() throws Exception {
                 MvcResult result = mockMvc.perform(get("/api/admin/inventory")
                                 .header("Authorization", "Bearer " + adminAccessToken)
@@ -222,6 +222,8 @@ public class OrderLifecycleIntegrationTest {
                                 .andReturn();
 
                 JsonNode inv = objectMapper.readTree(result.getResponse().getContentAsString());
+                Assertions.assertEquals(initialAvailableStock - 5, inv.get("availableStock").asInt(),
+                                "Available stock should be reduced when the order is placed");
                 System.out.println("Stock after PENDING: available=" + inv.get("availableStock") +
                                 ", reserved=" + inv.get("reservedStock"));
         }
@@ -384,7 +386,7 @@ public class OrderLifecycleIntegrationTest {
         }
 
         // ────────────────────────────────────────────────────────────
-        // 3. Verify timestamps and stock deduction after DELIVERED
+        // 3. Verify timestamps and stock finalization after DELIVERED
         // ────────────────────────────────────────────────────────────
 
         @Test
@@ -404,7 +406,7 @@ public class OrderLifecycleIntegrationTest {
 
         @Test
         @Order(17)
-        @DisplayName("3.2 Confirm stock deducted after DELIVERED (availableStock reduced, reservedStock released)")
+        @DisplayName("3.2 Confirm delivery releases reserved stock without changing available stock again")
         void confirmStockDeductedAfterDelivery() throws Exception {
                 MvcResult result = mockMvc.perform(get("/api/admin/inventory")
                                 .header("Authorization", "Bearer " + adminAccessToken)
@@ -416,9 +418,11 @@ public class OrderLifecycleIntegrationTest {
                 int currentAvailable = inv.get("availableStock").asInt();
                 int currentReserved = inv.get("reservedStock").asInt();
 
-                // After DELIVERED: availableStock should be reduced by order qty (5)
+                // Under the reservation model, available stock was already reduced at order placement.
                 Assertions.assertEquals(initialAvailableStock - 5, currentAvailable,
-                                "Available stock should be reduced by ordered quantity after delivery");
+                                "Available stock should remain at the post-reservation level after delivery");
+                Assertions.assertEquals(0, currentReserved,
+                                "Reserved stock should be released after delivery");
 
                 System.out.println("Stock after DELIVERED: available=" + currentAvailable +
                                 ", reserved=" + currentReserved +

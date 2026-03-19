@@ -96,7 +96,7 @@ class OrderTransitionHelperTest {
 
     @Test
     void updateOrderInternal_WithValidTransition_UpdatesSuccessfully() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doNothing().when(orderValidator).validateAdminTransition(OrderStatus.PENDING, OrderStatus.CONFIRMED);
         when(orderValidator.getStatusOrThrow("CONFIRMED")).thenReturn(confirmedStatus);
         doNothing().when(orderInventoryManager).handleInventoryUpdate(order, OrderStatus.PENDING, OrderStatus.CONFIRMED);
@@ -113,7 +113,7 @@ class OrderTransitionHelperTest {
 
     @Test
     void updateOrderInternal_WithNonExistingOrder_ThrowsException() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.empty());
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.empty());
 
         assertThrows(OrderNotFoundException.class, () ->
                 orderTransitionHelper.updateOrderInternal(orderId, "CONFIRMED"));
@@ -125,7 +125,7 @@ class OrderTransitionHelperTest {
 
     @Test
     void updateOrderInternal_WithInvalidTransition_ThrowsException() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doThrow(new InvalidOrderTransitionException("Invalid transition"))
                 .when(orderValidator).validateAdminTransition(OrderStatus.PENDING, OrderStatus.SHIPPED);
 
@@ -139,7 +139,7 @@ class OrderTransitionHelperTest {
 
     @Test
     void updateOrderInternal_TrimsAndUpperCasesStatus() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doNothing().when(orderValidator).validateAdminTransition(OrderStatus.PENDING, OrderStatus.CONFIRMED);
         when(orderValidator.getStatusOrThrow("CONFIRMED")).thenReturn(confirmedStatus);
         doNothing().when(orderInventoryManager).handleInventoryUpdate(order, OrderStatus.PENDING, OrderStatus.CONFIRMED);
@@ -156,7 +156,7 @@ class OrderTransitionHelperTest {
         customer.setFirstName(null);
         customer.setLastName(null);
 
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doNothing().when(orderValidator).validateAdminTransition(OrderStatus.PENDING, OrderStatus.CONFIRMED);
         when(orderValidator.getStatusOrThrow("CONFIRMED")).thenReturn(confirmedStatus);
         doNothing().when(orderInventoryManager).handleInventoryUpdate(order, OrderStatus.PENDING, OrderStatus.CONFIRMED);
@@ -174,7 +174,7 @@ class OrderTransitionHelperTest {
 
     @Test
     void cancelStalePendingOrder_WithPendingOrder_CancelsSuccessfully() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         when(orderValidator.getStatusOrThrow("CANCELLED")).thenReturn(cancelledStatus);
 
         orderTransitionHelper.cancelStalePendingOrder(orderId);
@@ -188,7 +188,7 @@ class OrderTransitionHelperTest {
     void cancelStalePendingOrder_WithNonPendingOrder_DoesNothing() {
         order.setStatus(confirmedStatus);
         
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
 
         orderTransitionHelper.cancelStalePendingOrder(orderId);
 
@@ -199,7 +199,7 @@ class OrderTransitionHelperTest {
 
     @Test
     void cancelStalePendingOrder_WithNonExistingOrder_ThrowsException() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.empty());
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.empty());
 
         assertThrows(OrderNotFoundException.class, () ->
                 orderTransitionHelper.cancelStalePendingOrder(orderId));
@@ -213,7 +213,7 @@ class OrderTransitionHelperTest {
         customer.setFirstName(null);
         customer.setLastName(null);
 
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         when(orderValidator.getStatusOrThrow("CANCELLED")).thenReturn(cancelledStatus);
 
         orderTransitionHelper.cancelStalePendingOrder(orderId);
@@ -230,7 +230,7 @@ class OrderTransitionHelperTest {
         customer.setFirstName("John");
         customer.setLastName(null);
 
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         when(orderValidator.getStatusOrThrow("CANCELLED")).thenReturn(cancelledStatus);
 
         orderTransitionHelper.cancelStalePendingOrder(orderId);

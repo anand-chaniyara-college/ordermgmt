@@ -928,7 +928,8 @@ graph TD
 }
 ```
 
-**Note:** `actualAvailable = availableStock - reservedStock`
+**Note:** In the reservation model, `availableStock` is the free-to-sell quantity and
+`reservedStock` is the quantity held for open orders.
 
 ##### **Error Responses**
 

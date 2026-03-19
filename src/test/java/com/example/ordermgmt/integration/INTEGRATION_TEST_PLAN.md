@@ -38,7 +38,7 @@
 |    14 | Bulk Transition (Happy)     | SHIPPED → DELIVERED (success — lifecycle complete)                        |
 |    15 | Bulk Transition (Negative)  | DELIVERED → CONFIRMED — terminal state → failure in bulk result           |
 |    16 | Timestamp Verification      | Confirm createdTimestamp & updatedTimestamp on DELIVERED order             |
-|    17 | Stock Deduction             | availableStock reduced by 5, reservedStock released after DELIVERED       |
+|    17 | Stock Finalization          | availableStock remains reduced from placement, reservedStock released after DELIVERED |
 | 18–19 | Logout                      | Logout CUSTOMER → Logout ADMIN                                           |
 
 ---

@@ -72,8 +72,8 @@ POST /customer/orders
   → OrderServiceImpl.createOrder()
     → OrderInventoryManagerImpl.processAndSaveOrderItems()
       → inventoryRepository.findAllByItemIdInForUpdate(itemIds)  [Mechanism A]
-        → check effectiveAvailable (availableStock - reservedStock)
-          → reservedStock++ → saveAndFlush()
+        → check availableStock
+          → availableStock--, reservedStock++ → saveAndFlush()
 ```
 
 **Status: ✅ FULLY HANDLED**
@@ -82,11 +82,12 @@ POST /customer/orders
 
 1. All requested item rows are locked with `SELECT … FOR UPDATE` in a single sorted batch
    query before any reads or writes occur.
-2. The effective availability check (`availableStock - reservedStock`) happens **inside the
+2. The availability check (`availableStock`) happens **inside the
    lock**, so no other transaction can intervene between the check and the update.
-3. `reservedStock` is incremented and flushed (`saveAndFlush`) before the lock is released.
+3. `availableStock` is decremented, `reservedStock` is incremented, and the row is
+   flushed (`saveAndFlush`) before the lock is released.
 4. The second customer's thread will block at the `FOR UPDATE` statement until the first
-   transaction commits, then re-reads the now-updated `reservedStock` and will correctly
+   transaction commits, then re-reads the now-updated `availableStock` and will correctly
    receive an `InsufficientStockException` if stock is exhausted.
 5. `@Version` on `InventoryItem` acts as a second layer — even if a pessimistic lock gap
    somehow occurred, a stale-read write would be rejected at commit time.
@@ -394,17 +395,17 @@ InventoryServiceImpl.updateInventoryItems()
 ```
 OrderInventoryManagerImpl.processAndSaveOrderItems()
   → inventoryRepository.findAllByItemIdInForUpdate(itemIds)         [Mechanism A]
-    → check effectiveAvailable = availableStock - reservedStock
-      → reservedStock += 20 → saveAndFlush()
+    → check availableStock
+      → availableStock -= 20, reservedStock += 20 → saveAndFlush()
 ```
 
 **Status: ✅ HANDLED**
 
 Both paths contend for the exact same `SELECT … FOR UPDATE` lock on the same item row.
 They serialize. If the admin goes first (availableStock = 10) and the customer requests
-20 units: `effectiveAvailable = 10 - 0 = 10 < 20` → `InsufficientStockException`. Correct.
-If the customer goes first: reservedStock = 20. Admin then tries to set availableStock = 10
-but `10 < 20 (reservedStock)` → `InvalidOperationException`. Correct.
+20 units: `availableStock = 10 < 20` → `InsufficientStockException`. Correct.
+If the customer goes first: availableStock is reduced before commit, so the admin's later
+update sees the already-reserved free stock rather than stale pre-reservation inventory.
 
 ---
 
