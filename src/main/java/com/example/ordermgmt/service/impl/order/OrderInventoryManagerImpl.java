@@ -63,19 +63,20 @@ public class OrderInventoryManagerImpl {
                                 throw new InvalidOperationException("Item not found: " + itemReq.getItemId());
                         }
 
-                        int effectiveAvailable = inventoryItem.getAvailableStock() - inventoryItem.getReservedStock();
-                        if (effectiveAvailable < itemReq.getQuantity()) {
+                        int availableStock = inventoryItem.getAvailableStock();
+                        if (availableStock < itemReq.getQuantity()) {
                                 throw new InsufficientStockException("Insufficient stock for item: "
                                                 + inventoryItem.getItemName() + " (ID: " + inventoryItem.getItemId()
-                                                + "). Available: " + effectiveAvailable + ", Requested: "
+                                                + "). Available: " + availableStock + ", Requested: "
                                                 + itemReq.getQuantity());
                         }
 
                         BigDecimal unitPrice = resolveUnitPrice(inventoryItem);
 
+                        inventoryItem.setAvailableStock(inventoryItem.getAvailableStock() - itemReq.getQuantity());
                         inventoryItem.setReservedStock(inventoryItem.getReservedStock() + itemReq.getQuantity());
                         inventoryRepository.saveAndFlush(inventoryItem);
-                        logger.debug("PENDING: Item {} reserved — total: {}, reserved: {}",
+                        logger.debug("PENDING: Item {} reserved — available: {}, reserved: {}",
                                         inventoryItem.getItemId(), inventoryItem.getAvailableStock(),
                                         inventoryItem.getReservedStock());
 
@@ -104,11 +105,10 @@ public class OrderInventoryManagerImpl {
          * Handle inventory updates based on order status transitions.
          * Uses pessimistic locking with deterministic lock order.
          *
-         * State machine (TOTAL model):
-         * CREATE (PENDING): reservedStock += qty (Done in processAndSaveOrderItems)
-         * ANY Status -> CANCELLED: reservedStock -= qty
-         * SHIPPED -> DELIVERED: availableStock -= qty, reservedStock -= qty (Final
-         * fulfillment)
+         * State machine (reservation model):
+         * CREATE (PENDING): availableStock -= qty, reservedStock += qty
+         * ANY Status -> CANCELLED: availableStock += qty, reservedStock -= qty
+         * SHIPPED -> DELIVERED: reservedStock -= qty
          */
         @Transactional
         public void handleInventoryUpdate(Orders order, OrderStatus currentStatus, OrderStatus nextStatus) {
@@ -134,22 +134,22 @@ public class OrderInventoryManagerImpl {
                                 .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
 
                 if (nextStatus == OrderStatus.CANCELLED) {
-                        // Release reservation: reserved --
+                        // Revert reservation: available ++, reserved --
                         for (OrderItem item : items) {
                                 InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                                inv.setAvailableStock(inv.getAvailableStock() + item.getQuantity());
                                 inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
                                 inventoryRepository.save(inv);
-                                logger.debug("CANCELLED: Item {} reserved released — total: {}, reserved: {}",
+                                logger.debug("CANCELLED: Item {} reservation reverted — available: {}, reserved: {}",
                                                 inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
                         }
                 } else if (nextStatus == OrderStatus.DELIVERED && currentStatus == OrderStatus.SHIPPED) {
-                        // Final fulfillment: total --, reserved --
+                        // Final fulfillment: reserved --
                         for (OrderItem item : items) {
                                 InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
-                                inv.setAvailableStock(inv.getAvailableStock() - item.getQuantity());
                                 inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
                                 inventoryRepository.save(inv);
-                                logger.debug("DELIVERED: Item {} fulfilled — total: {}, reserved: {}",
+                                logger.debug("DELIVERED: Item {} fulfilled — available: {}, reserved: {}",
                                                 inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
                         }
                 }

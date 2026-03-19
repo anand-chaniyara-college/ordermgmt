@@ -6,7 +6,6 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.AssertTrue;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -60,14 +59,6 @@ public class InventoryItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "org_id", insertable = false, updatable = false)
     private Organization org;
-
-    @AssertTrue(message = "Available stock must be greater than or equal to reserved stock")
-    public boolean isStockConsistent() {
-        if (availableStock == null || reservedStock == null) {
-            return true;
-        }
-        return availableStock >= reservedStock;
-    }
 
     @CreatedDate
     @Column(name = "createdtimestamp", nullable = false, updatable = false)
