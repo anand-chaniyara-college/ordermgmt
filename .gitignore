@@ -41,3 +41,12 @@ node_modules/
 ### OS ###
 .DS_Store
 Thumbs.db
+
+### Monitoring & Docker Data ###
+loki_data/
+grafana_data/
+prometheus_data/
+*.jks
+*.p12
+*.key
+.env.local

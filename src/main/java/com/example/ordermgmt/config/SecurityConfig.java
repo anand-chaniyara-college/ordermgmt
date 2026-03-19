@@ -45,7 +45,8 @@ public class SecurityConfig {
                                 "/error",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
-                                "/swagger-ui.html")
+                                "/swagger-ui.html",
+                                "/actuator/**")
                         .permitAll()
                         .requestMatchers("/api/super-admin/**").hasAuthority("SUPER_ADMIN")
                         .requestMatchers("/api/org-admin/**").hasAuthority("ORG_ADMIN")
