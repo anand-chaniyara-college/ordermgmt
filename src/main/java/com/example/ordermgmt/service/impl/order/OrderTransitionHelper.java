@@ -43,7 +43,7 @@ public class OrderTransitionHelper {
 
                 String newStatusName = newStatusString.trim().toUpperCase();
 
-                Orders order = ordersRepository.findById(orderId)
+                Orders order = ordersRepository.findByIdWithLock(orderId)
                                 .orElseThrow(() -> {
                                         logger.warn("Skipping updateOrderInternal for Order: {} - Order not found",
                                                         orderId);
@@ -91,7 +91,7 @@ public class OrderTransitionHelper {
         public void cancelStalePendingOrder(UUID orderId) {
                 logger.info("Processing cancelStalePendingOrder for Order: {}", orderId);
 
-                Orders order = ordersRepository.findById(orderId)
+                Orders order = ordersRepository.findByIdWithLock(orderId)
                                 .orElseThrow(() -> {
                                         logger.warn("Skipping cancelStalePendingOrder for Order: {} - Order not found",
                                                         orderId);

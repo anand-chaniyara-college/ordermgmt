@@ -1,6 +1,7 @@
 package com.example.ordermgmt.scheduler;
 
 import com.example.ordermgmt.entity.Orders;
+import com.example.ordermgmt.enums.OrderStatus;
 import com.example.ordermgmt.exception.OrderNotFoundException;
 import com.example.ordermgmt.repository.OrdersRepository;
 import com.example.ordermgmt.service.impl.order.OrderTransitionHelper;
@@ -33,7 +34,7 @@ public class OrderAutoCancelScheduler {
         logger.info("Processing cancelStalePendingOrders for Scheduler");
 
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(STALE_MINUTES);
-        List<Orders> staleOrders = ordersRepository.findStalePendingOrders(PENDING_STATUS, cutoff);
+        List<Orders> staleOrders = ordersRepository.findStalePendingOrdersPriority(OrderStatus.PENDING.name(), cutoff);
 
         if (staleOrders.isEmpty()) {
             logger.info("cancelStalePendingOrders completed successfully for Scheduler: no stale orders found");
