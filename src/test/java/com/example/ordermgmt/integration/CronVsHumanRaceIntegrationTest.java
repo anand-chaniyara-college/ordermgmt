@@ -274,12 +274,12 @@ public class CronVsHumanRaceIntegrationTest {
  * 
  * 2. Root Cause
  * The current architecture lacks a "Human-in-the-Loop" priority mechanism.
- * Although we have implemented SKIP LOCKED (which prevents the Scheduler from
- * interfering with active Admin locks), it does not protect an Admin whose
- * thread arrives at the Database Lock Manager slightly after the Scheduler's
- * thread. At the database level, there is no built-in way to tell the Lock
- * Manager that the "Admin packet" should be prioritized over the "Scheduler
- * packet."
+ * The scheduler now performs an unlocked candidate lookup and relies on the
+ * per-order FOR UPDATE lock inside OrderTransitionHelper. That keeps the final
+ * state correct, but it still does not protect an Admin whose thread arrives at
+ * the Database Lock Manager slightly after the Scheduler's thread. At the
+ * database level, there is no built-in way to tell the Lock Manager that the
+ * "Admin packet" should be prioritized over the "Scheduler packet."
  * 
  * 3. Impact & Risk
  * Operational Friction: Administrators may experience errors (e.g., "Order is

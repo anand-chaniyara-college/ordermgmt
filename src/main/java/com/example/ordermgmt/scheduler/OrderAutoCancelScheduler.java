@@ -34,7 +34,7 @@ public class OrderAutoCancelScheduler {
         logger.info("Processing cancelStalePendingOrders for Scheduler");
 
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(STALE_MINUTES);
-        List<Orders> staleOrders = ordersRepository.findStalePendingOrdersPriority(OrderStatus.PENDING.name(), cutoff);
+        List<Orders> staleOrders = ordersRepository.findStalePendingOrders(OrderStatus.PENDING.name(), cutoff);
 
         if (staleOrders.isEmpty()) {
             logger.info("cancelStalePendingOrders completed successfully for Scheduler: no stale orders found");

@@ -5,9 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.jpa.repository.Lock;
-import org.springframework.data.jpa.repository.QueryHints;
 import jakarta.persistence.LockModeType;
-import jakarta.persistence.QueryHint;
 import org.springframework.stereotype.Repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -27,12 +25,6 @@ public interface OrdersRepository extends JpaRepository<Orders, UUID> {
 
     @Query("SELECT o FROM Orders o WHERE o.status.statusName = :statusName AND o.createdTimestamp < :cutoff")
     List<Orders> findStalePendingOrders(@Param("statusName") String statusName,
-            @Param("cutoff") LocalDateTime cutoff);
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @QueryHints({@QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2")})
-    @Query("SELECT o FROM Orders o WHERE o.status.statusName = :statusName AND o.createdTimestamp < :cutoff")
-    List<Orders> findStalePendingOrdersPriority(@Param("statusName") String statusName,
             @Param("cutoff") LocalDateTime cutoff);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

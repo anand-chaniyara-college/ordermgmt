@@ -47,7 +47,7 @@ that actually exists in this codebase and where it lives.
 | A | `SELECT … FOR UPDATE` (Pessimistic Write) | `InventoryItemRepository.findAllByItemIdInForUpdate()` | Exclusive row lock on all requested inventory items |
 | B | `SELECT … FOR UPDATE` (Pessimistic Write) | `InventoryItemRepository.findByIdForUpdate()` | Exclusive row lock on a single inventory item |
 | C | `SELECT … FOR UPDATE` (Pessimistic Write) | `OrdersRepository.findByIdWithLock()` | Exclusive row lock on a single order row |
-| D | `SELECT … FOR UPDATE SKIP LOCKED` | `OrdersRepository.findStalePendingOrdersPriority()` | Scheduler silently skips any order locked by another transaction |
+| D | Unlocked stale-order candidate query | `OrdersRepository.findStalePendingOrders()` | Scheduler discovers candidate orders before per-order locking |
 | E | `@Version` (Optimistic Locking) | `InventoryItem.version` | Database-level version stamp; stale write throws `OptimisticLockException` |
 | F | Sorted Lock Acquisition | `OrderInventoryManagerImpl`, `InventoryServiceImpl` | itemIds always sorted ascending before locking → no circular wait → no deadlock |
 | G | `@Transactional(propagation = REQUIRES_NEW)` | `OrderTransitionHelper.updateOrderInternal()`, `cancelStalePendingOrder()` | Each order transition runs in its own isolated transaction; one failure cannot roll back another |
@@ -220,8 +220,7 @@ Race: OrderAutoCancelScheduler identifies a stale PENDING order → calls cancel
 **Scheduler Code Path:**
 ```
 OrderAutoCancelScheduler.cancelStalePendingOrders()
-  → ordersRepository.findStalePendingOrdersPriority(PENDING, cutoff)
-    [PESSIMISTIC_WRITE + SKIP LOCKED — lock.timeout = -2]          [Mechanism D]
+  → ordersRepository.findStalePendingOrders(PENDING, cutoff)       [Mechanism D]
   → for each orderId:
       transitionHelper.cancelStalePendingOrder(orderId)             [REQUIRES_NEW]
         → ordersRepository.findByIdWithLock(orderId)                [Mechanism C]
@@ -241,19 +240,13 @@ OrderTransitionHelper.updateOrderInternal()                         [REQUIRES_NE
 
 **Status: ✅ HANDLED (with a documented residual nanosecond race)**
 
-**How it works — three layers of protection:**
+**How it works — two layers of protection:**
 
-**Layer 1 — SKIP LOCKED on the list query:**
-`findStalePendingOrdersPriority` uses `lock.timeout = -2` which translates to `SKIP LOCKED`
-in PostgreSQL. If the admin transaction is **already holding a lock** on the order row, the
-scheduler's list query will simply not include that order in its result set. The order is
-effectively invisible to the scheduler while the admin holds the lock.
-
-**Layer 2 — Per-order pessimistic lock:**
+**Layer 1 — Per-order pessimistic lock:**
 Both `cancelStalePendingOrder()` and `updateOrderInternal()` call `findByIdWithLock()`.
 Whichever thread gets the `SELECT … FOR UPDATE` lock first wins. The other waits.
 
-**Layer 3 — Status re-check after lock acquisition:**
+**Layer 2 — Status re-check after lock acquisition:**
 Inside `cancelStalePendingOrder()`:
 ```java
 if (!OrderStatus.PENDING.name().equals(order.getStatus().getStatusName())) {
@@ -265,19 +258,18 @@ Even if the scheduler beat the admin to the lock and then the admin committed fi
 with pessimistic lock but covered for safety), this check ensures no double-action occurs.
 
 **Residual Risk (documented in test, not yet mitigated):**
-SKIP LOCKED only helps if the admin has **already acquired** the row lock. If the scheduler
-thread reaches the DB lock manager a nanosecond before the admin thread, the scheduler gets
-the lock, cancels the order, and the admin sees "order is no longer PENDING". At the database
-level there is no built-in way to assign higher priority to the admin's lock request over the
-scheduler's lock request.
+If the scheduler thread reaches the DB lock manager a nanosecond before the admin thread, the
+scheduler gets the lock, cancels the order, and the admin sees "order is no longer PENDING".
+At the database level there is no built-in way to assign higher priority to the admin's lock
+request over the scheduler's lock request.
 
 **Proposed (not yet implemented) mitigations:**
 - Soft-lock flag (`is_admin_active` column): Scheduler ignores orders with this flag.
 - Grace-period filter: Scheduler skips orders with `updatedTimestamp > now - 5 min`.
 - Admin Grace-window: Admin sets the flag when the order detail page is opened.
 
-**Test Coverage:** `CronVsHumanRaceIntegrationTest` — 30 orders: admin won 6, cron won 24.
-Inventory perfectly matched the 6 confirmed orders (zero stock leaks).
+**Test Coverage:** `CronVsHumanRaceIntegrationTest` — final state remains consistent because
+the per-order lock plus post-lock status re-check prevent stock leaks and double transitions.
 
 ---
 
@@ -678,7 +670,7 @@ Race: Scheduler fetches a list of stale PENDING orders.
 **Code Path:**
 ```
 OrderAutoCancelScheduler.cancelStalePendingOrders()
-  → ordersRepository.findStalePendingOrdersPriority(PENDING, cutoff) ← snapshot list
+  → ordersRepository.findStalePendingOrders(PENDING, cutoff) ← snapshot list
     → for each order:
         transitionHelper.cancelStalePendingOrder(order.getOrderId())
           → ordersRepository.findByIdWithLock(orderId)
@@ -704,7 +696,7 @@ order. The scheduler loop never crashes.
 | ① | Customer vs Customer — stock exhaustion | ✅ **Fully Handled** | FOR UPDATE + @Version + sorted locks | None |
 | ② | Multi-item deadlock (AB/BA ordering) | ✅ **Fully Handled** | Sorted lock acquisition (itemId asc) | None |
 | ③ | Customer Cancel vs Admin Confirm — same order | ⚠️ **Partial** | Admin: FOR UPDATE ✅ / Customer: plain findById ❌ | `cancelOrder()` uses unlocked `findById()` |
-| ④ | Scheduler Cancel vs Admin Confirm — same order | ✅ **Handled** | SKIP LOCKED + FOR UPDATE + status re-check | Nanosecond priority race (accepted, unmitigated) |
+| ④ | Scheduler Cancel vs Admin Confirm — same order | ✅ **Handled** | Candidate query + FOR UPDATE + status re-check | Nanosecond priority race (accepted, unmitigated) |
 | ⑤ | Admin Price Update vs Order Creation | ✅ **Fully Handled** | Immutable PricingHistory + inventory lock | None |
 | ⑥ | Concurrent Bulk Status Update | ✅ **Handled** | REQUIRES_NEW + per-order FOR UPDATE | Outer loop non-transactional (by design) |
 | ⑦ | Admin Inventory Update vs Order Creation | ✅ **Fully Handled** | Both use FOR UPDATE on same row | None |
@@ -918,7 +910,7 @@ unhandled scenarios above.
 - **Result:**
   - Admin wins: 6 / Cron wins: 24
   - Reserved stock: exactly 6 (matching 6 confirmed orders)
-  - **Zero stock leaks** (the SKIP LOCKED + status re-check mechanism is sound)
+  - **Zero stock leaks** (the per-order lock + status re-check mechanism is sound)
 - **Residual finding:** Scheduler has no priority disadvantage — it can beat the admin
   (nanosecond race). This is the accepted residual risk of Scenario ④.
 
