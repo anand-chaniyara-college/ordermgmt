@@ -122,7 +122,11 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderDTO cancelOrder(UUID orderId, String email) {
         logger.info("Processing cancelOrder for Order: {}, Customer: {}", orderId, email);
-        Orders order = getOrderOrThrow(orderId);
+        Orders order = ordersRepository.findByIdWithLock(orderId)
+                .orElseThrow(() -> {
+                    logger.warn("Order not found: {}", orderId);
+                    return new OrderNotFoundException("Order not found: " + orderId);
+                });
 
         orderValidator.validateOrderOwnership(order, email);
         orderValidator.validateOrderCancellation(order);

@@ -197,7 +197,7 @@ class OrderServiceImplTest {
 
     @Test
     void cancelOrder_WithValidRequest_CancelsSuccessfully() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doNothing().when(orderValidator).validateOrderOwnership(order, email);
         doNothing().when(orderValidator).validateOrderCancellation(order);
         when(orderValidator.getStatusOrThrow("CANCELLED")).thenReturn(pendingStatus); // reuse pending status for test
@@ -214,7 +214,7 @@ class OrderServiceImplTest {
 
     @Test
     void cancelOrder_WithInvalidOwnership_ThrowsException() {
-        when(ordersRepository.findById(orderId)).thenReturn(Optional.of(order));
+        when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doThrow(new InvalidOperationException("Access denied"))
                 .when(orderValidator).validateOrderOwnership(order, email);
 
