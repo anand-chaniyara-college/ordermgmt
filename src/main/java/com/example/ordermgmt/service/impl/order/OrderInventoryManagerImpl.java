@@ -110,13 +110,13 @@ public class OrderInventoryManagerImpl {
         }
 
         /**
-         * Handle inventory updates based on order status transitions.
-         * Uses pessimistic locking with deterministic lock order.
+         * Handle inventory updates based on specific order status transitions.
+         * Uses pessimistic locking with deterministic lock order to prevent deadlocks.
          *
-         * State machine (reservation model):
-         * CREATE (PENDING): availableStock -= qty, reservedStock += qty
-         * ANY Status -> CANCELLED: availableStock += qty, reservedStock -= qty
-         * SHIPPED -> DELIVERED: reservedStock -= qty
+         * Inventory transitions handled:
+         * 1. Revert Reservation: (Any Status) -> CANCELLED (availableStock += qty, reservedStock -= qty)
+         * 2. Final Fulfillment: SHIPPED -> DELIVERED (reservedStock -= qty)
+         * 3. No-op: All other transitions (no inventory impact)
          */
         @Transactional
         public void handleInventoryUpdate(Orders order, OrderStatus currentStatus, OrderStatus nextStatus) {
