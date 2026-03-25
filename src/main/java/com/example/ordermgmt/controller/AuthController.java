@@ -63,7 +63,7 @@ public class AuthController {
             HttpServletRequest servletRequest) {
         String clientIp = getClientIp(servletRequest);
 
-        if (!rateLimitingService.allowRequest(clientIp, rateLimitRequests, rateLimitWindowSeconds)) {
+        if (!rateLimitingService.allowRequest(clientIp, RateLimitingService.ENDPOINT_REGISTER, rateLimitRequests, rateLimitWindowSeconds)) {
             logger.warn("Rate limit exceeded for IP: {}", clientIp);
             return ResponseEntity.status(429)
                     .body(Map.of("message", "Too many registration attempts. Please try again later."));
@@ -132,7 +132,7 @@ public class AuthController {
             HttpServletRequest servletRequest) {
         String clientIp = getClientIp(servletRequest);
 
-        if (!rateLimitingService.allowRequest(clientIp, rateLimitRequests, rateLimitWindowSeconds)) {
+        if (!rateLimitingService.allowRequest(clientIp, RateLimitingService.ENDPOINT_FORGOT_PASSWORD, rateLimitRequests, rateLimitWindowSeconds)) {
             logger.warn("Rate limit exceeded for IP: {}", clientIp);
             return ResponseEntity.status(429)
                     .body(Map.of("message", "Too many requests. Please try again later."));

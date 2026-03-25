@@ -59,7 +59,7 @@ class AuthControllerTest {
         requestDTO.setRoleName("CUSTOMER");
         requestDTO.setOrgSubdomain("test");
 
-        when(rateLimitingService.allowRequest(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(rateLimitingService.allowRequest(anyString(), anyString(), anyLong(), anyLong())).thenReturn(true);
         doNothing().when(authService).registerUser(any(RegistrationRequestDTO.class));
 
         mockMvc.perform(post("/api/auth/register")
@@ -80,7 +80,7 @@ class AuthControllerTest {
         requestDTO.setRoleName("CUSTOMER");
         requestDTO.setOrgSubdomain("test");
 
-        when(rateLimitingService.allowRequest(anyString(), anyLong(), anyLong())).thenReturn(false);
+        when(rateLimitingService.allowRequest(anyString(), anyString(), anyLong(), anyLong())).thenReturn(false);
 
         mockMvc.perform(post("/api/auth/register")
                 .header("X-Forwarded-For", "192.168.1.1")
@@ -157,7 +157,7 @@ class AuthControllerTest {
         requestDTO.setRoleName("CUSTOMER");
         requestDTO.setOrgSubdomain("test");
 
-        when(rateLimitingService.allowRequest(anyString(), anyLong(), anyLong())).thenReturn(true);
+        when(rateLimitingService.allowRequest(anyString(), anyString(), anyLong(), anyLong())).thenReturn(true);
         doThrow(new RuntimeException("DB error")).when(authService).registerUser(any(RegistrationRequestDTO.class));
 
         mockMvc.perform(post("/api/auth/register")

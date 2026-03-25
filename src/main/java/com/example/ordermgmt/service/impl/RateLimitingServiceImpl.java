@@ -9,15 +9,13 @@ import java.util.concurrent.TimeUnit;
 public class RateLimitingServiceImpl implements RateLimitingService {
 
     private final StringRedisTemplate redisTemplate;
-    private static final String RATE_LIMIT_PREFIX = "rate_limit:register:";
-
     public RateLimitingServiceImpl(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
     @Override
-    public boolean allowRequest(String key, long maxRequests, long windowInSeconds) {
-        String redisKey = RATE_LIMIT_PREFIX + key;
+    public boolean allowRequest(String key, String endpoint, long maxRequests, long windowInSeconds) {
+        String redisKey = RateLimitingService.RATE_LIMIT_PREFIX + endpoint + ":" + key;
 
         Long count = redisTemplate.opsForValue().increment(redisKey);
 

@@ -30,6 +30,7 @@ class RateLimitingServiceImplTest {
     private static final String KEY = "test-key";
     private static final long MAX_REQUESTS = 5;
     private static final long WINDOW_SECONDS = 60;
+    private static final String TEST_PREFIX = com.example.ordermgmt.service.RateLimitingService.RATE_LIMIT_PREFIX + com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER + ":";
 
     @BeforeEach
     void setUp() {
@@ -38,19 +39,19 @@ class RateLimitingServiceImplTest {
 
     @Test
     void allowRequest_FirstRequest_ReturnsTrue() {
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(1L);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(1L);
 
-        boolean result = rateLimitingService.allowRequest(KEY, MAX_REQUESTS, WINDOW_SECONDS);
+        boolean result = rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS);
 
         assertTrue(result);
-        verify(redisTemplate).expire("rate_limit:register:" + KEY, WINDOW_SECONDS, TimeUnit.SECONDS);
+        verify(redisTemplate).expire(TEST_PREFIX + KEY, WINDOW_SECONDS, TimeUnit.SECONDS);
     }
 
     @Test
     void allowRequest_WithinLimit_ReturnsTrue() {
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(3L);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(3L);
 
-        boolean result = rateLimitingService.allowRequest(KEY, MAX_REQUESTS, WINDOW_SECONDS);
+        boolean result = rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS);
 
         assertTrue(result);
         verify(redisTemplate, never()).expire(anyString(), anyLong(), any());
@@ -58,27 +59,27 @@ class RateLimitingServiceImplTest {
 
     @Test
     void allowRequest_AtLimit_ReturnsTrue() {
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(MAX_REQUESTS);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(MAX_REQUESTS);
 
-        boolean result = rateLimitingService.allowRequest(KEY, MAX_REQUESTS, WINDOW_SECONDS);
+        boolean result = rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS);
 
         assertTrue(result);
     }
 
     @Test
     void allowRequest_ExceedsLimit_ReturnsFalse() {
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(MAX_REQUESTS + 1);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(MAX_REQUESTS + 1);
 
-        boolean result = rateLimitingService.allowRequest(KEY, MAX_REQUESTS, WINDOW_SECONDS);
+        boolean result = rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS);
 
         assertFalse(result);
     }
 
     @Test
     void allowRequest_WithNullIncrement_ReturnsFalse() {
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(null);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(null);
 
-        boolean result = rateLimitingService.allowRequest(KEY, MAX_REQUESTS, WINDOW_SECONDS);
+        boolean result = rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS);
 
         assertFalse(result);
     }
@@ -88,14 +89,14 @@ class RateLimitingServiceImplTest {
         String key1 = "key1";
         String key2 = "key2";
 
-        when(valueOperations.increment("rate_limit:register:" + key1)).thenReturn(1L);
-        when(valueOperations.increment("rate_limit:register:" + key2)).thenReturn(1L);
+        when(valueOperations.increment(TEST_PREFIX + key1)).thenReturn(1L);
+        when(valueOperations.increment(TEST_PREFIX + key2)).thenReturn(1L);
 
-        assertTrue(rateLimitingService.allowRequest(key1, MAX_REQUESTS, WINDOW_SECONDS));
-        assertTrue(rateLimitingService.allowRequest(key2, MAX_REQUESTS, WINDOW_SECONDS));
+        assertTrue(rateLimitingService.allowRequest(key1, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS));
+        assertTrue(rateLimitingService.allowRequest(key2, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, WINDOW_SECONDS));
 
-        verify(redisTemplate).expire("rate_limit:register:" + key1, WINDOW_SECONDS, TimeUnit.SECONDS);
-        verify(redisTemplate).expire("rate_limit:register:" + key2, WINDOW_SECONDS, TimeUnit.SECONDS);
+        verify(redisTemplate).expire(TEST_PREFIX + key1, WINDOW_SECONDS, TimeUnit.SECONDS);
+        verify(redisTemplate).expire(TEST_PREFIX + key2, WINDOW_SECONDS, TimeUnit.SECONDS);
     }
 
     @Test
@@ -103,20 +104,20 @@ class RateLimitingServiceImplTest {
         long smallWindow = 30;
         long largeWindow = 120;
 
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(1L);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(1L);
 
-        rateLimitingService.allowRequest(KEY, MAX_REQUESTS, smallWindow);
-        verify(redisTemplate).expire("rate_limit:register:" + KEY, smallWindow, TimeUnit.SECONDS);
+        rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, smallWindow);
+        verify(redisTemplate).expire(TEST_PREFIX + KEY, smallWindow, TimeUnit.SECONDS);
 
-        rateLimitingService.allowRequest(KEY, MAX_REQUESTS, largeWindow);
-        verify(redisTemplate).expire("rate_limit:register:" + KEY, largeWindow, TimeUnit.SECONDS);
+        rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, MAX_REQUESTS, largeWindow);
+        verify(redisTemplate).expire(TEST_PREFIX + KEY, largeWindow, TimeUnit.SECONDS);
     }
 
     @Test
     void allowRequest_WithZeroMaxRequests_AlwaysReturnsFalse() {
-        when(valueOperations.increment("rate_limit:register:" + KEY)).thenReturn(1L);
+        when(valueOperations.increment(TEST_PREFIX + KEY)).thenReturn(1L);
 
-        boolean result = rateLimitingService.allowRequest(KEY, 0, WINDOW_SECONDS);
+        boolean result = rateLimitingService.allowRequest(KEY, com.example.ordermgmt.service.RateLimitingService.ENDPOINT_REGISTER, 0, WINDOW_SECONDS);
 
         assertFalse(result);
     }
