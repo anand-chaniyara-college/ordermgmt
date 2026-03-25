@@ -2,9 +2,7 @@ package com.example.ordermgmt.security;
 
 import java.util.UUID;
 import org.hibernate.context.spi.CurrentTenantIdentifierResolver;
-import org.springframework.stereotype.Component;
 
-@Component
 public class TenantIdentifierResolver implements CurrentTenantIdentifierResolver<UUID> {
 
     @Override
