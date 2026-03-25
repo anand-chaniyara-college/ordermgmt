@@ -56,8 +56,8 @@ public class EmailNotificationListener {
             emailService.sendEmail(event.recipientEmail(), event.subject(), htmlBody);
 
         } catch (Exception e) {
-            logger.error("Failed to generate and send email for template [{}] to recipient [{}]: {}",
-                    event.templateName(), event.recipientEmail(), e.getMessage());
+            logger.error("Failed to generate and send email for template [{}] to recipient [{}]",
+                    event.templateName(), event.recipientEmail(), e);
         } finally {
             com.example.ordermgmt.security.TenantContextHolder.clear();
         }

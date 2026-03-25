@@ -45,7 +45,7 @@ public class EmailServiceImpl implements EmailService {
             updateLogStatus(emailLog, EmailStatus.SENT, null);
             logger.info("sendEmail completed successfully for User: {}", to);
         } catch (Exception e) {
-            logger.error("sendEmail failed for recipient: {}: {}", to, e.getMessage());
+            logger.error("sendEmail failed for recipient: {}", to, e);
             updateLogStatus(emailLog, EmailStatus.FAILED, e.getMessage());
             throw new EmailSendingException("Failed to send email to " + to, e);
         }

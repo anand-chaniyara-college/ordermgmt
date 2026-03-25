@@ -49,7 +49,7 @@ public class OrderAutoCancelScheduler {
             try {
                 transitionHelper.cancelStalePendingOrder(order.getOrderId());
             } catch (OrderNotFoundException e) {
-                logger.error("cancelStalePendingOrder failed for Order: {}: {}", order.getOrderId(), e.getMessage());
+                logger.error("cancelStalePendingOrder failed for Order: {}", order.getOrderId(), e);
             }
         }
 
