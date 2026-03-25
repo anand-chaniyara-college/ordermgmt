@@ -30,8 +30,9 @@ public class OrderAutoCancelScheduler {
     private final OrderTransitionHelper transitionHelper;
 
     @Scheduled(fixedRateString = "${app.scheduler.fixed-rate-ms}")
-
+    public void cancelStalePendingOrders() {
         logger.info("Processing cancelStalePendingOrders for Scheduler");
+
 
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(staleMinutes);
         List<Orders> staleOrders = ordersRepository.findStalePendingOrders(OrderStatus.PENDING.name(), cutoff);

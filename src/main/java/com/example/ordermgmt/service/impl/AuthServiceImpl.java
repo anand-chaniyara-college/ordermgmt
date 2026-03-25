@@ -63,8 +63,9 @@ public class AuthServiceImpl implements AuthService {
     private final StringRedisTemplate redisTemplate;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Value("${app.jwt.refresh.expirationMs}")
+    @Value("${app.jwt.refresh.expiration-ms}")
     private long refreshExpirationMs;
+
 
     public AuthServiceImpl(AppUserRepository appUserRepository,
             UserRoleRepository userRoleRepository,
