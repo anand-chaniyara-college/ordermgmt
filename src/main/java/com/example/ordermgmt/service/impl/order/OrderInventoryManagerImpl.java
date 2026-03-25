@@ -145,8 +145,8 @@ public class OrderInventoryManagerImpl {
                         // Revert reservation: available ++, reserved --
                         for (OrderItem item : items) {
                                 InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
+                                releaseReservedStock(inv, item.getQuantity());
                                 inv.setAvailableStock(inv.getAvailableStock() + item.getQuantity());
-                                inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
                                 inventoryRepository.save(inv);
                                 logger.debug("CANCELLED: Item {} reservation reverted — available: {}, reserved: {}",
                                                 inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
@@ -155,7 +155,7 @@ public class OrderInventoryManagerImpl {
                         // Final fulfillment: reserved --
                         for (OrderItem item : items) {
                                 InventoryItem inv = locked.get(item.getInventoryItem().getItemId());
-                                inv.setReservedStock(inv.getReservedStock() - item.getQuantity());
+                                releaseReservedStock(inv, item.getQuantity());
                                 inventoryRepository.save(inv);
                                 logger.debug("DELIVERED: Item {} fulfilled — available: {}, reserved: {}",
                                                 inv.getItemId(), inv.getAvailableStock(), inv.getReservedStock());
@@ -189,5 +189,17 @@ public class OrderInventoryManagerImpl {
                 throw new InvalidOperationException(
                                 "Price not found for item ID: " + inventoryItem.getItemId()
                                                 + ". Ensure pricing is configured before accepting orders.");
+        }
+
+        private void releaseReservedStock(InventoryItem inventoryItem, int quantity) {
+                int currentReserved = inventoryItem.getReservedStock();
+                int newReserved = currentReserved - quantity;
+                if (newReserved < 0) {
+                        throw new InvalidOperationException(
+                                        "Stock inconsistency for item " + inventoryItem.getItemId()
+                                                        + ": cannot release " + quantity
+                                                        + " units, only " + currentReserved + " reserved");
+                }
+                inventoryItem.setReservedStock(newReserved);
         }
 }

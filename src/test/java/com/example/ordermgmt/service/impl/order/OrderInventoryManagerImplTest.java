@@ -226,6 +226,24 @@ class OrderInventoryManagerImplTest {
     }
 
     @Test
+    void handleInventoryUpdate_CancelledWithInsufficientReservedStock_ThrowsMeaningfulException() {
+        inventoryItem1.setReservedStock(3);
+        List<OrderItem> orderItems = List.of(createOrderItem(order, inventoryItem1, 5));
+
+        when(orderItemRepository.findByOrderOrderId(orderId)).thenReturn(orderItems);
+        when(inventoryRepository.findAllByItemIdInForUpdate(anyList()))
+                .thenReturn(List.of(inventoryItem1));
+
+        InvalidOperationException ex = assertThrows(InvalidOperationException.class, () ->
+                orderInventoryManager.handleInventoryUpdate(order, OrderStatus.CONFIRMED, OrderStatus.CANCELLED));
+
+        assertTrue(ex.getMessage().contains("cannot release 5 units"));
+        assertEquals(100, inventoryItem1.getAvailableStock());
+        assertEquals(3, inventoryItem1.getReservedStock());
+        verify(inventoryRepository, never()).save(any(InventoryItem.class));
+    }
+
+    @Test
     void handleInventoryUpdate_ShippedToDelivered_RemovesReservation() {
         List<OrderItem> orderItems = List.of(createOrderItem(order, inventoryItem1, 5));
 
@@ -237,6 +255,24 @@ class OrderInventoryManagerImplTest {
 
         assertEquals(100, inventoryItem1.getAvailableStock()); // unchanged
         assertEquals(15, inventoryItem1.getReservedStock()); // 20 - 5
+    }
+
+    @Test
+    void handleInventoryUpdate_DeliveredWithInsufficientReservedStock_ThrowsMeaningfulException() {
+        inventoryItem1.setReservedStock(3);
+        List<OrderItem> orderItems = List.of(createOrderItem(order, inventoryItem1, 5));
+
+        when(orderItemRepository.findByOrderOrderId(orderId)).thenReturn(orderItems);
+        when(inventoryRepository.findAllByItemIdInForUpdate(anyList()))
+                .thenReturn(List.of(inventoryItem1));
+
+        InvalidOperationException ex = assertThrows(InvalidOperationException.class, () ->
+                orderInventoryManager.handleInventoryUpdate(order, OrderStatus.SHIPPED, OrderStatus.DELIVERED));
+
+        assertTrue(ex.getMessage().contains("cannot release 5 units"));
+        assertEquals(100, inventoryItem1.getAvailableStock());
+        assertEquals(3, inventoryItem1.getReservedStock());
+        verify(inventoryRepository, never()).save(any(InventoryItem.class));
     }
 
     @Test
