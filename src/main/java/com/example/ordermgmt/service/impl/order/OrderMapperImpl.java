@@ -4,6 +4,7 @@ import com.example.ordermgmt.dto.OrderDTO;
 import com.example.ordermgmt.dto.OrderItemDTO;
 import com.example.ordermgmt.entity.OrderItem;
 import com.example.ordermgmt.entity.Orders;
+import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.repository.OrderItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -45,7 +46,13 @@ public class OrderMapperImpl {
 
     public BigDecimal calculateTotal(List<OrderItemDTO> items) {
         return items.stream()
-                .map(OrderItemDTO::getSubTotal)
+                .map(item -> {
+                    if (item.getSubTotal() == null) {
+                        throw new InvalidOperationException(
+                            "SubTotal is null for item: " + item.getItemId());
+                    }
+                    return item.getSubTotal();
+                })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

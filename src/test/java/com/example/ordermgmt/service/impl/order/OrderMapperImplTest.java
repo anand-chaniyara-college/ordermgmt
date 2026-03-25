@@ -7,6 +7,7 @@ import com.example.ordermgmt.entity.InventoryItem;
 import com.example.ordermgmt.entity.OrderItem;
 import com.example.ordermgmt.entity.Orders;
 import com.example.ordermgmt.entity.OrderStatusLookup;
+import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.repository.OrderItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -201,6 +202,6 @@ class OrderMapperImplTest {
                 new OrderItemDTO(itemId2, "Item 2", 10, BigDecimal.valueOf(49.99), BigDecimal.valueOf(499.90))
         );
 
-        assertThrows(NullPointerException.class, () -> orderMapper.calculateTotal(itemsWithNull));
+        assertThrows(InvalidOperationException.class, () -> orderMapper.calculateTotal(itemsWithNull));
     }
 }
