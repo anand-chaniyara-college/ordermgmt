@@ -124,8 +124,8 @@ public class OrgAdminController {
 
     @GetMapping("/analytics/order-analytics")
     public ResponseEntity<OrderAnalyticsResponseDTO> getOrderAnalytics(
-            @RequestParam("startdate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam("enddate") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(value = "startdate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(value = "enddate", required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(value = "itemname", required = false) String itemName,
             @RequestParam(value = "orderstatus", required = false) String orderStatus,
             @Parameter(description = "Page number (0-indexed)") @RequestParam(required = false) Integer page,

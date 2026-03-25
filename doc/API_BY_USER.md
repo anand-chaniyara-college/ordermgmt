@@ -403,8 +403,8 @@ Response (`200`):
 
 ### GET `/api/org-admin/analytics/order-analytics`
 Query params:
-- `startdate` required, `YYYY-MM-DD`
-- `enddate` required, `YYYY-MM-DD`
+- `startdate` optional, `YYYY-MM-DD`
+- `enddate` optional, `YYYY-MM-DD`
 - `itemname` optional, comma-separated list allowed, partial match (case-insensitive)
 - `orderstatus` optional, comma-separated list allowed, values: `PENDING`, `CONFIRMED`, `PROCESSING`, `SHIPPED`, `DELIVERED`, `CANCELLED` (alias `CANCELED` accepted)
 - `page` optional, 0-indexed
