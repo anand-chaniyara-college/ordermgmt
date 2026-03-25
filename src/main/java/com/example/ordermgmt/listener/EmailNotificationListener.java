@@ -4,9 +4,10 @@ import com.example.ordermgmt.event.EmailDispatchEvent;
 import com.example.ordermgmt.service.EmailService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -30,7 +31,7 @@ public class EmailNotificationListener {
     }
 
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
     public void handleEmailDispatch(EmailDispatchEvent event) {
         logger.info("Intercepted EmailDispatchEvent handling template [{}] for recipient [{}]",
                 event.templateName(), event.recipientEmail());
