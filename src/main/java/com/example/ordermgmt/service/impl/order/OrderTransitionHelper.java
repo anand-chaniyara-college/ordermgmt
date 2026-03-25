@@ -9,7 +9,7 @@ import com.example.ordermgmt.repository.OrdersRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
@@ -22,7 +22,7 @@ import java.util.UUID;
  * - In bulk updates, one failure doesn't roll back other orders.
  * - The auto-cancel scheduler can cancel each order independently.
  */
-@Component
+@Service
 @RequiredArgsConstructor
 public class OrderTransitionHelper {
 

@@ -6,14 +6,14 @@ import com.example.ordermgmt.entity.OrderItem;
 import com.example.ordermgmt.entity.Orders;
 import com.example.ordermgmt.repository.OrderItemRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
-@Component
+@Service
 @RequiredArgsConstructor
 public class OrderMapperImpl {
 
