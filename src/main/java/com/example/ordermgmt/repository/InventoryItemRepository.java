@@ -22,9 +22,9 @@ public interface InventoryItemRepository extends JpaRepository<InventoryItem, UU
     @Query("SELECT i FROM InventoryItem i WHERE i.availableStock > 0 AND i.pricingCatalog.unitPrice IS NOT NULL")
     Page<InventoryItem> findAvailableWithPricing(Pageable pageable);
 
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT i FROM InventoryItem i WHERE i.itemId = :itemId")
-    Optional<InventoryItem> findByIdForUpdate(@Param("itemId") UUID itemId);
+//    @Lock(LockModeType.PESSIMISTIC_WRITE)
+//    @Query("SELECT i FROM InventoryItem i WHERE i.itemId = :itemId")
+//    Optional<InventoryItem> findByIdForUpdate(@Param("itemId") UUID itemId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT i FROM InventoryItem i WHERE i.itemId IN :itemIds ORDER BY i.itemId")

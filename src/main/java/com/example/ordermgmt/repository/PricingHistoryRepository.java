@@ -11,7 +11,7 @@ import java.util.UUID;
 @Repository
 public interface PricingHistoryRepository extends JpaRepository<PricingHistory, UUID> {
 
-    List<PricingHistory> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(UUID itemId);
+//    List<PricingHistory> findAllByInventoryItemItemIdOrderByCreatedTimestampDesc(UUID itemId);
 
     Optional<PricingHistory> findFirstByInventoryItemItemIdOrderByCreatedTimestampDesc(UUID itemId);
 }
