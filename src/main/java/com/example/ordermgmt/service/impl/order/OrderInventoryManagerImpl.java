@@ -43,62 +43,70 @@ public class OrderInventoryManagerImpl {
         @Transactional
         public List<OrderItemDTO> processAndSaveOrderItems(List<OrderItemDTO> items, Orders order) {
                 logger.info("Processing processAndSaveOrderItems for Order: {}", order.getOrderId());
-                // 1. Sort by itemId for deterministic lock order (deadlock prevention)
-                List<OrderItemDTO> sortedItems = items.stream()
-                                .sorted(Comparator.comparing(OrderItemDTO::getItemId))
+                List<OrderItemDTO> sortedItems = sortByItemId(items);
+                Map<UUID, InventoryItem> lockedInventory = acquireInventoryLocks(sortedItems);
+
+                List<OrderItemDTO> result = sortedItems.stream()
+                                .map(itemReq -> processItem(itemReq, lockedInventory, order))
                                 .collect(Collectors.toList());
-
-                // 2. Batch lock all inventory items at once (sorted by itemId in the query)
-                List<UUID> itemIds = sortedItems.stream()
-                                .map(OrderItemDTO::getItemId)
-                                .collect(Collectors.toList());
-                Map<UUID, InventoryItem> lockedInventory = inventoryRepository
-                                .findAllByItemIdInForUpdate(itemIds).stream()
-                                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
-
-                // 3. Process each item against locked inventory
-                List<OrderItemDTO> result = sortedItems.stream().map(itemReq -> {
-                        InventoryItem inventoryItem = lockedInventory.get(itemReq.getItemId());
-                        if (inventoryItem == null) {
-                                throw new InvalidOperationException("Item not found: " + itemReq.getItemId());
-                        }
-
-                        int availableStock = inventoryItem.getAvailableStock();
-                        if (availableStock < itemReq.getQuantity()) {
-                                throw new InsufficientStockException("Insufficient stock for item: "
-                                                + inventoryItem.getItemName() + " (ID: " + inventoryItem.getItemId()
-                                                + "). Available: " + availableStock + ", Requested: "
-                                                + itemReq.getQuantity());
-                        }
-
-                        BigDecimal unitPrice = resolveUnitPrice(inventoryItem);
-
-                        inventoryItem.setAvailableStock(inventoryItem.getAvailableStock() - itemReq.getQuantity());
-                        inventoryItem.setReservedStock(inventoryItem.getReservedStock() + itemReq.getQuantity());
-                        inventoryRepository.saveAndFlush(inventoryItem);
-                        logger.debug("PENDING: Item {} reserved — available: {}, reserved: {}",
-                                        inventoryItem.getItemId(), inventoryItem.getAvailableStock(),
-                                        inventoryItem.getReservedStock());
-
-                        // Create and save OrderItem
-                        OrderItem orderItem = new OrderItem();
-                        orderItem.setId(new OrderItem.OrderItemId(order.getOrderId(), inventoryItem.getItemId()));
-                        orderItem.setOrder(order);
-                        orderItem.setInventoryItem(inventoryItem);
-                        orderItem.setQuantity(itemReq.getQuantity());
-                        orderItem.setUnitPrice(unitPrice);
-                        orderItemRepository.save(orderItem);
-
-                        return new OrderItemDTO(
-                                        inventoryItem.getItemId(),
-                                        inventoryItem.getItemName(),
-                                        orderItem.getQuantity(),
-                                        orderItem.getUnitPrice(),
-                                        orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
-                }).collect(Collectors.toList());
 
                 logger.info("processAndSaveOrderItems completed successfully for Order: {}", order.getOrderId());
                 return result;
+        }
+
+        private List<OrderItemDTO> sortByItemId(List<OrderItemDTO> items) {
+                return items.stream()
+                                .sorted(Comparator.comparing(OrderItemDTO::getItemId))
+                                .collect(Collectors.toList());
+        }
+
+        private Map<UUID, InventoryItem> acquireInventoryLocks(List<OrderItemDTO> items) {
+                List<UUID> itemIds = items.stream()
+                                .map(OrderItemDTO::getItemId)
+                                .collect(Collectors.toList());
+                return inventoryRepository
+                                .findAllByItemIdInForUpdate(itemIds).stream()
+                                .collect(Collectors.toMap(InventoryItem::getItemId, Function.identity()));
+        }
+
+        private OrderItemDTO processItem(OrderItemDTO itemReq, Map<UUID, InventoryItem> lockedInventory, Orders order) {
+                InventoryItem inventoryItem = lockedInventory.get(itemReq.getItemId());
+                if (inventoryItem == null) {
+                        throw new InvalidOperationException("Item not found: " + itemReq.getItemId());
+                }
+
+                int availableStock = inventoryItem.getAvailableStock();
+                if (availableStock < itemReq.getQuantity()) {
+                        throw new InsufficientStockException("Insufficient stock for item: "
+                                        + inventoryItem.getItemName() + " (ID: " + inventoryItem.getItemId()
+                                        + "). Available: " + availableStock + ", Requested: "
+                                        + itemReq.getQuantity());
+                }
+
+                BigDecimal unitPrice = resolveUnitPrice(inventoryItem);
+
+                inventoryItem.setAvailableStock(inventoryItem.getAvailableStock() - itemReq.getQuantity());
+                inventoryItem.setReservedStock(inventoryItem.getReservedStock() + itemReq.getQuantity());
+                inventoryRepository.saveAndFlush(inventoryItem);
+                logger.debug("PENDING: Item {} reserved — available: {}, reserved: {}",
+                                inventoryItem.getItemId(), inventoryItem.getAvailableStock(),
+                                inventoryItem.getReservedStock());
+
+                // Create and save OrderItem
+                OrderItem orderItem = new OrderItem();
+                orderItem.setId(new OrderItem.OrderItemId(order.getOrderId(), inventoryItem.getItemId()));
+                orderItem.setOrder(order);
+                orderItem.setInventoryItem(inventoryItem);
+                orderItem.setQuantity(itemReq.getQuantity());
+                orderItem.setUnitPrice(unitPrice);
+                orderItemRepository.save(orderItem);
+
+                return new OrderItemDTO(
+                                inventoryItem.getItemId(),
+                                inventoryItem.getItemName(),
+                                orderItem.getQuantity(),
+                                orderItem.getUnitPrice(),
+                                orderItem.getUnitPrice().multiply(BigDecimal.valueOf(orderItem.getQuantity())));
         }
 
         /**
