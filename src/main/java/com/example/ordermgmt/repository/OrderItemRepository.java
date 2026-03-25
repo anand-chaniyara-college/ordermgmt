@@ -17,8 +17,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, OrderItem.OrderItemId> {
+
         List<OrderItem> findByOrderOrderId(UUID orderId);
 
+        List<OrderItem> findByOrderOrderIdIn(List<UUID> orderIds);
 
         @Query("SELECT new com.example.ordermgmt.dto.analytics.RevenueReportSummaryDTO("
                         +

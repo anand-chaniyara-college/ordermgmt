@@ -2,6 +2,7 @@ package com.example.ordermgmt.service.impl.order;
 
 import com.example.ordermgmt.dto.*;
 import com.example.ordermgmt.entity.Customer;
+import com.example.ordermgmt.entity.OrderItem;
 import com.example.ordermgmt.entity.Orders;
 import com.example.ordermgmt.entity.OrderStatusLookup;
 import com.example.ordermgmt.enums.OrderStatus;
@@ -9,6 +10,7 @@ import com.example.ordermgmt.event.EmailDispatchEvent;
 import com.example.ordermgmt.exception.InsufficientStockException;
 import com.example.ordermgmt.exception.InvalidOperationException;
 import com.example.ordermgmt.exception.OrderNotFoundException;
+import com.example.ordermgmt.repository.OrderItemRepository;
 import com.example.ordermgmt.repository.OrdersRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -25,34 +27,24 @@ import org.springframework.data.domain.Pageable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceImplTest {
 
-    @Mock
-    private OrdersRepository ordersRepository;
-
-    @Mock
-    private OrderValidatorImpl orderValidator;
-
-    @Mock
-    private OrderInventoryManagerImpl orderInventoryManager;
-
-    @Mock
-    private OrderMapperImpl orderMapper;
-
-    @Mock
-    private OrderTransitionHelper transitionHelper;
-
-    @Mock
-    private ApplicationEventPublisher eventPublisher;
+    @Mock private OrdersRepository ordersRepository;
+    @Mock private OrderItemRepository orderItemRepository;
+    @Mock private OrderValidatorImpl orderValidator;
+    @Mock private OrderInventoryManagerImpl orderInventoryManager;
+    @Mock private OrderMapperImpl orderMapper;
+    @Mock private OrderTransitionHelper transitionHelper;
+    @Mock private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private OrderServiceImpl orderService;
@@ -69,9 +61,9 @@ class OrderServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        orderId = UUID.randomUUID();
+        orderId    = UUID.randomUUID();
         customerId = UUID.randomUUID();
-        email = "customer@example.com";
+        email      = "customer@example.com";
 
         customer = new Customer();
         customer.setCustomerId(customerId);
@@ -88,14 +80,18 @@ class OrderServiceImplTest {
         order.setStatus(pendingStatus);
         order.setCreatedTimestamp(LocalDateTime.now());
 
-        orderItemDTO = new OrderItemDTO(UUID.randomUUID(), "Test Item", 2, 
+        orderItemDTO = new OrderItemDTO(UUID.randomUUID(), "Test Item", 2,
                 BigDecimal.valueOf(49.99), BigDecimal.valueOf(99.98));
         itemDTOs = List.of(orderItemDTO);
 
-        orderDTO = new OrderDTO(orderId, customerId, "PENDING", 
-                LocalDateTime.now(), LocalDateTime.now(), 
+        orderDTO = new OrderDTO(orderId, customerId, "PENDING",
+                LocalDateTime.now(), LocalDateTime.now(),
                 itemDTOs, BigDecimal.valueOf(99.98));
     }
+
+    // -------------------------------------------------------------------------
+    // createOrder
+    // -------------------------------------------------------------------------
 
     @Test
     void createOrder_WithValidRequest_CreatesSuccessfully() {
@@ -112,10 +108,10 @@ class OrderServiceImplTest {
         OrderDTO result = orderService.createOrder(orderDTO, email);
 
         assertNotNull(result);
-        assertEquals(orderId, result.getOrderId());
-        assertEquals(customerId, result.getCustomerId());
-        assertEquals("PENDING", result.getStatus());
-        assertEquals(1, result.getItems().size());
+        assertEquals(orderId,                  result.getOrderId());
+        assertEquals(customerId,               result.getCustomerId());
+        assertEquals("PENDING",                result.getStatus());
+        assertEquals(1,                        result.getItems().size());
         assertEquals(BigDecimal.valueOf(99.98), result.getTotalAmount());
 
         verify(eventPublisher).publishEvent(any(EmailDispatchEvent.class));
@@ -126,44 +122,65 @@ class OrderServiceImplTest {
         when(orderValidator.validateAndGetCustomer(email))
                 .thenThrow(new InvalidOperationException("Customer not found"));
 
-        assertThrows(InvalidOperationException.class, () ->
-                orderService.createOrder(orderDTO, email));
-        
+        assertThrows(InvalidOperationException.class, () -> orderService.createOrder(orderDTO, email));
+
         verify(eventPublisher, never()).publishEvent(any());
     }
 
+    // -------------------------------------------------------------------------
+    // getCustomerOrders — batch-fetch path is exercised
+    // -------------------------------------------------------------------------
+
     @Test
-    void getCustomerOrders_AsList_ReturnsOrders() {
+    void getCustomerOrders_AsList_FetchesItemsInBatchAndReturnsOrders() {
         when(ordersRepository.findByCustomerAppUserEmail(email)).thenReturn(List.of(order));
-        when(orderMapper.convertToDTO(order)).thenReturn(orderDTO);
+        // Simulate the batch-fetch returning an empty list (no items for this order in the map)
+        when(orderItemRepository.findByOrderOrderIdIn(List.of(orderId))).thenReturn(List.of());
+        when(orderMapper.convertToDTO(eq(order), any(Map.class))).thenReturn(orderDTO);
 
         List<OrderDTO> result = orderService.getCustomerOrders(email);
 
         assertEquals(1, result.size());
         assertEquals(orderId, result.get(0).getOrderId());
+
+        // Confirm the batch method was called once (not the per-order single-ID variant)
+        verify(orderItemRepository).findByOrderOrderIdIn(List.of(orderId));
+        verify(orderItemRepository, never()).findByOrderOrderId(any());
     }
 
     @Test
-    void getCustomerOrders_AsList_WithNoOrders_ReturnsEmptyList() {
+    void getCustomerOrders_AsList_WithNoOrders_ReturnsEmptyListWithoutItemQuery() {
         when(ordersRepository.findByCustomerAppUserEmail(email)).thenReturn(List.of());
 
         List<OrderDTO> result = orderService.getCustomerOrders(email);
 
         assertTrue(result.isEmpty());
+
+        // No item query should fire when the order list is empty
+        verify(orderItemRepository).findByOrderOrderIdIn(List.of());
+        verify(orderItemRepository, never()).findByOrderOrderId(any());
     }
 
     @Test
-    void getCustomerOrders_AsPage_ReturnsPagedOrders() {
+    void getCustomerOrders_AsPage_FetchesItemsInBatchAndReturnsPagedOrders() {
         Page<Orders> orderPage = new PageImpl<>(List.of(order));
         when(ordersRepository.findByCustomerAppUserEmail(eq(email), any(Pageable.class)))
                 .thenReturn(orderPage);
-        when(orderMapper.convertToDTO(order)).thenReturn(orderDTO);
+        when(orderItemRepository.findByOrderOrderIdIn(List.of(orderId))).thenReturn(List.of());
+        when(orderMapper.convertToDTO(eq(order), any(Map.class))).thenReturn(orderDTO);
 
         Page<OrderDTO> result = orderService.getCustomerOrders(email, PageRequest.of(0, 10));
 
         assertEquals(1, result.getContent().size());
         assertEquals(orderId, result.getContent().get(0).getOrderId());
+
+        verify(orderItemRepository).findByOrderOrderIdIn(List.of(orderId));
+        verify(orderItemRepository, never()).findByOrderOrderId(any());
     }
+
+    // -------------------------------------------------------------------------
+    // getCustomerOrderById  (single-order path: uses convertToDTO(Orders))
+    // -------------------------------------------------------------------------
 
     @Test
     void getCustomerOrderById_WithValidOwnership_ReturnsOrder() {
@@ -180,9 +197,8 @@ class OrderServiceImplTest {
     @Test
     void getCustomerOrderById_WithNonExistingOrder_ThrowsException() {
         when(ordersRepository.findById(orderId)).thenReturn(Optional.empty());
-
-        assertThrows(OrderNotFoundException.class, () ->
-                orderService.getCustomerOrderById(orderId, email));
+        assertThrows(OrderNotFoundException.class,
+                () -> orderService.getCustomerOrderById(orderId, email));
     }
 
     @Test
@@ -191,17 +207,22 @@ class OrderServiceImplTest {
         doThrow(new InvalidOperationException("Access denied"))
                 .when(orderValidator).validateOrderOwnership(order, email);
 
-        assertThrows(InvalidOperationException.class, () ->
-                orderService.getCustomerOrderById(orderId, email));
+        assertThrows(InvalidOperationException.class,
+                () -> orderService.getCustomerOrderById(orderId, email));
     }
+
+    // -------------------------------------------------------------------------
+    // cancelOrder
+    // -------------------------------------------------------------------------
 
     @Test
     void cancelOrder_WithValidRequest_CancelsSuccessfully() {
         when(ordersRepository.findByIdWithLock(orderId)).thenReturn(Optional.of(order));
         doNothing().when(orderValidator).validateOrderOwnership(order, email);
         doNothing().when(orderValidator).validateOrderCancellation(order);
-        when(orderValidator.getStatusOrThrow("CANCELLED")).thenReturn(pendingStatus); // reuse pending status for test
-        doNothing().when(orderInventoryManager).handleInventoryUpdate(eq(order), eq(OrderStatus.PENDING), eq(OrderStatus.CANCELLED));
+        when(orderValidator.getStatusOrThrow("CANCELLED")).thenReturn(pendingStatus);
+        doNothing().when(orderInventoryManager).handleInventoryUpdate(
+                eq(order), eq(OrderStatus.PENDING), eq(OrderStatus.CANCELLED));
         when(orderMapper.convertToDTO(order)).thenReturn(orderDTO);
 
         OrderDTO result = orderService.cancelOrder(orderId, email);
@@ -218,31 +239,47 @@ class OrderServiceImplTest {
         doThrow(new InvalidOperationException("Access denied"))
                 .when(orderValidator).validateOrderOwnership(order, email);
 
-        assertThrows(InvalidOperationException.class, () ->
-                orderService.cancelOrder(orderId, email));
+        assertThrows(InvalidOperationException.class,
+                () -> orderService.cancelOrder(orderId, email));
     }
 
+    // -------------------------------------------------------------------------
+    // getAllOrders (admin) — batch-fetch path is exercised
+    // -------------------------------------------------------------------------
+
     @Test
-    void getAllOrders_AsList_ReturnsAllOrders() {
+    void getAllOrders_AsList_FetchesItemsInBatchAndReturnsAllOrders() {
         when(ordersRepository.findAll()).thenReturn(List.of(order));
-        when(orderMapper.convertToDTO(order)).thenReturn(orderDTO);
+        when(orderItemRepository.findByOrderOrderIdIn(List.of(orderId))).thenReturn(List.of());
+        when(orderMapper.convertToDTO(eq(order), any(Map.class))).thenReturn(orderDTO);
 
         List<OrderDTO> result = orderService.getAllOrders();
 
         assertEquals(1, result.size());
         assertEquals(orderId, result.get(0).getOrderId());
+
+        verify(orderItemRepository).findByOrderOrderIdIn(List.of(orderId));
+        verify(orderItemRepository, never()).findByOrderOrderId(any());
     }
 
     @Test
-    void getAllOrders_AsPage_ReturnsPagedOrders() {
+    void getAllOrders_AsPage_FetchesItemsInBatchAndReturnsPagedOrders() {
         Page<Orders> orderPage = new PageImpl<>(List.of(order));
         when(ordersRepository.findAll(any(Pageable.class))).thenReturn(orderPage);
-        when(orderMapper.convertToDTO(order)).thenReturn(orderDTO);
+        when(orderItemRepository.findByOrderOrderIdIn(List.of(orderId))).thenReturn(List.of());
+        when(orderMapper.convertToDTO(eq(order), any(Map.class))).thenReturn(orderDTO);
 
         Page<OrderDTO> result = orderService.getAllOrders(PageRequest.of(0, 10));
 
         assertEquals(1, result.getContent().size());
+
+        verify(orderItemRepository).findByOrderOrderIdIn(List.of(orderId));
+        verify(orderItemRepository, never()).findByOrderOrderId(any());
     }
+
+    // -------------------------------------------------------------------------
+    // getOrderById (admin single-order path)
+    // -------------------------------------------------------------------------
 
     @Test
     void getOrderById_WithExistingOrder_ReturnsOrder() {
@@ -258,10 +295,12 @@ class OrderServiceImplTest {
     @Test
     void getOrderById_WithNonExistingOrder_ThrowsException() {
         when(ordersRepository.findById(orderId)).thenReturn(Optional.empty());
-
-        assertThrows(OrderNotFoundException.class, () ->
-                orderService.getOrderById(orderId));
+        assertThrows(OrderNotFoundException.class, () -> orderService.getOrderById(orderId));
     }
+
+    // -------------------------------------------------------------------------
+    // updateOrderStatus / updateOrdersStatus
+    // -------------------------------------------------------------------------
 
     @Test
     void updateOrderStatus_WithValidTransition_UpdatesSuccessfully() {
@@ -312,11 +351,10 @@ class OrderServiceImplTest {
                 new BulkOrderStatusUpdateDTO(orderId2, "SHIPPED")
         );
 
-        OrderDTO successDTO1 = new OrderDTO(orderId1, customerId, "CONFIRMED", null, null, null, null);
-        OrderDTO successDTO2 = new OrderDTO(orderId2, customerId, "SHIPPED", null, null, null, null);
-
-        when(transitionHelper.updateOrderInternal(orderId1, "CONFIRMED")).thenReturn(successDTO1);
-        when(transitionHelper.updateOrderInternal(orderId2, "SHIPPED")).thenReturn(successDTO2);
+        when(transitionHelper.updateOrderInternal(orderId1, "CONFIRMED"))
+                .thenReturn(new OrderDTO(orderId1, customerId, "CONFIRMED", null, null, null, null));
+        when(transitionHelper.updateOrderInternal(orderId2, "SHIPPED"))
+                .thenReturn(new OrderDTO(orderId2, customerId, "SHIPPED",    null, null, null, null));
 
         BulkOrderUpdateResultDTO result = orderService.updateOrdersStatus(updates);
 
@@ -347,9 +385,7 @@ class OrderServiceImplTest {
 
     @Test
     void updateOrdersStatus_WithEmptyList_ReturnsEmptyResult() {
-        List<BulkOrderStatusUpdateDTO> updates = List.of();
-
-        BulkOrderUpdateResultDTO result = orderService.updateOrdersStatus(updates);
+        BulkOrderUpdateResultDTO result = orderService.updateOrdersStatus(List.of());
 
         assertTrue(result.getSuccesses().isEmpty());
         assertTrue(result.getFailures().isEmpty());

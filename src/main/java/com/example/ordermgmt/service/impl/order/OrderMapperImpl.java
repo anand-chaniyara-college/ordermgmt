@@ -12,6 +12,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -34,12 +36,14 @@ public class OrderMapperImpl {
     @Transactional(readOnly = true)
     public OrderDTO convertToDTO(Orders order) {
         List<OrderItem> items = orderItemRepository.findByOrderOrderId(order.getOrderId());
-        List<OrderItemDTO> itemDTOs = items.stream().map(item -> new OrderItemDTO(
-                item.getInventoryItem().getItemId(),
-                item.getInventoryItem().getItemName(),
-                item.getQuantity(),
-                item.getUnitPrice(),
-                item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity())))).collect(Collectors.toList());
+        List<OrderItemDTO> itemDTOs = toItemDTOs(items);
+        BigDecimal total = calculateTotal(itemDTOs);
+        return convertToDTO(order, itemDTOs, total);
+    }
+
+    public OrderDTO convertToDTO(Orders order, Map<UUID, List<OrderItem>> itemsByOrderId) {
+        List<OrderItem> items = itemsByOrderId.getOrDefault(order.getOrderId(), List.of());
+        List<OrderItemDTO> itemDTOs = toItemDTOs(items);
         BigDecimal total = calculateTotal(itemDTOs);
         return convertToDTO(order, itemDTOs, total);
     }
@@ -49,10 +53,21 @@ public class OrderMapperImpl {
                 .map(item -> {
                     if (item.getSubTotal() == null) {
                         throw new InvalidOperationException(
-                            "SubTotal is null for item: " + item.getItemId());
+                                "SubTotal is null for item: " + item.getItemId());
                     }
                     return item.getSubTotal();
                 })
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private List<OrderItemDTO> toItemDTOs(List<OrderItem> items) {
+        return items.stream()
+                .map(item -> new OrderItemDTO(
+                        item.getInventoryItem().getItemId(),
+                        item.getInventoryItem().getItemName(),
+                        item.getQuantity(),
+                        item.getUnitPrice(),
+                        item.getUnitPrice().multiply(BigDecimal.valueOf(item.getQuantity()))))
+                .collect(Collectors.toList());
     }
 }

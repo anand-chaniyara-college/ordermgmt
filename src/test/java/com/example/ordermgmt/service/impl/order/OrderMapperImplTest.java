@@ -19,10 +19,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.never;
 
 @ExtendWith(MockitoExtension.class)
 class OrderMapperImplTest {
@@ -48,10 +51,10 @@ class OrderMapperImplTest {
 
     @BeforeEach
     void setUp() {
-        orderId = UUID.randomUUID();
+        orderId    = UUID.randomUUID();
         customerId = UUID.randomUUID();
-        itemId1 = UUID.randomUUID();
-        itemId2 = UUID.randomUUID();
+        itemId1    = UUID.randomUUID();
+        itemId2    = UUID.randomUUID();
 
         customer = new Customer();
         customer.setCustomerId(customerId);
@@ -87,10 +90,14 @@ class OrderMapperImplTest {
         orderItem2.setUnitPrice(BigDecimal.valueOf(49.99));
 
         itemDTOs = List.of(
-                new OrderItemDTO(itemId1, "Item 1", 5, BigDecimal.valueOf(99.99), BigDecimal.valueOf(499.95)),
+                new OrderItemDTO(itemId1, "Item 1", 5,  BigDecimal.valueOf(99.99), BigDecimal.valueOf(499.95)),
                 new OrderItemDTO(itemId2, "Item 2", 10, BigDecimal.valueOf(49.99), BigDecimal.valueOf(499.90))
         );
     }
+
+    // -------------------------------------------------------------------------
+    // convertToDTO(Orders, List<OrderItemDTO>, BigDecimal) — full overload
+    // -------------------------------------------------------------------------
 
     @Test
     void convertToDTO_WithItemsAndTotal_ReturnsCompleteDTO() {
@@ -99,14 +106,18 @@ class OrderMapperImplTest {
         OrderDTO result = orderMapper.convertToDTO(order, itemDTOs, total);
 
         assertNotNull(result);
-        assertEquals(orderId, result.getOrderId());
+        assertEquals(orderId,    result.getOrderId());
         assertEquals(customerId, result.getCustomerId());
-        assertEquals("PENDING", result.getStatus());
+        assertEquals("PENDING",  result.getStatus());
         assertEquals(order.getCreatedTimestamp(), result.getCreatedTimestamp());
-        assertEquals(order.getUpdatedTimestamp(), result.getUpdatedTimestamp());
-        assertEquals(2, result.getItems().size());
+        assertEquals(order.getUpdatedTimestamp(),  result.getUpdatedTimestamp());
+        assertEquals(2,     result.getItems().size());
         assertEquals(total, result.getTotalAmount());
     }
+
+    // -------------------------------------------------------------------------
+    // convertToDTO(Orders) — single-order path: must call the repository once
+    // -------------------------------------------------------------------------
 
     @Test
     void convertToDTO_WithOrderOnly_LoadsItemsAndReturnsDTO() {
@@ -117,18 +128,17 @@ class OrderMapperImplTest {
         assertNotNull(result);
         assertEquals(orderId, result.getOrderId());
         assertEquals(2, result.getItems().size());
-        
-        // Verify calculated total
+
+        // Verify computed total
         BigDecimal expectedTotal = BigDecimal.valueOf(499.95).add(BigDecimal.valueOf(499.90));
         assertEquals(0, expectedTotal.compareTo(result.getTotalAmount()));
-        
-        // Verify item details
-        OrderItemDTO firstItem = result.getItems().get(0);
-        assertEquals(itemId1, firstItem.getItemId());
-        assertEquals("Item 1", firstItem.getItemName());
-        assertEquals(5, firstItem.getQuantity());
-        assertEquals(BigDecimal.valueOf(99.99), firstItem.getUnitPrice());
-        assertEquals(BigDecimal.valueOf(499.95), firstItem.getSubTotal());
+
+        OrderItemDTO first = result.getItems().get(0);
+        assertEquals(itemId1,                  first.getItemId());
+        assertEquals("Item 1",                 first.getItemName());
+        assertEquals(5,                        first.getQuantity());
+        assertEquals(BigDecimal.valueOf(99.99), first.getUnitPrice());
+        assertEquals(BigDecimal.valueOf(499.95), first.getSubTotal());
     }
 
     @Test
@@ -138,40 +148,14 @@ class OrderMapperImplTest {
         OrderDTO result = orderMapper.convertToDTO(order);
 
         assertNotNull(result);
-        assertEquals(0, result.getItems().size());
+        assertEquals(0,            result.getItems().size());
         assertEquals(BigDecimal.ZERO, result.getTotalAmount());
-    }
-
-    @Test
-    void calculateTotal_WithItems_ReturnsCorrectSum() {
-        BigDecimal result = orderMapper.calculateTotal(itemDTOs);
-
-        assertEquals(BigDecimal.valueOf(999.85), result);
-    }
-
-    @Test
-    void calculateTotal_WithEmptyList_ReturnsZero() {
-        BigDecimal result = orderMapper.calculateTotal(List.of());
-
-        assertEquals(BigDecimal.ZERO, result);
-    }
-
-    @Test
-    void calculateTotal_WithSingleItem_ReturnsItemSubTotal() {
-        List<OrderItemDTO> singleItem = List.of(
-                new OrderItemDTO(itemId1, "Item 1", 5, BigDecimal.valueOf(99.99), BigDecimal.valueOf(499.95))
-        );
-
-        BigDecimal result = orderMapper.calculateTotal(singleItem);
-
-        assertEquals(BigDecimal.valueOf(499.95), result);
     }
 
     @Test
     void convertToDTO_HandlesNullTimestamps() {
         order.setCreatedTimestamp(null);
         order.setUpdatedTimestamp(null);
-        
         when(orderItemRepository.findByOrderOrderId(orderId)).thenReturn(List.of());
 
         OrderDTO result = orderMapper.convertToDTO(order);
@@ -183,25 +167,103 @@ class OrderMapperImplTest {
 
     @Test
     void convertToDTO_PreservesOrderOfItems() {
-        // Create items in different order
-        List<OrderItem> unorderedItems = List.of(orderItem2, orderItem1);
-        when(orderItemRepository.findByOrderOrderId(orderId)).thenReturn(unorderedItems);
+        // Items returned in reverse order — mapping must preserve repository order
+        when(orderItemRepository.findByOrderOrderId(orderId)).thenReturn(List.of(orderItem2, orderItem1));
 
         OrderDTO result = orderMapper.convertToDTO(order);
 
-        // Should preserve the order from repository
+        assertEquals(2,      result.getItems().size());
+        assertEquals(itemId2, result.getItems().get(0).getItemId());
+        assertEquals(itemId1, result.getItems().get(1).getItemId());
+    }
+
+    // -------------------------------------------------------------------------
+    // convertToDTO(Orders, Map) — batch-list path: must NOT call the repository
+    // -------------------------------------------------------------------------
+
+    @Test
+    void convertToDTO_WithItemsMap_ReturnsDTOWithoutCallingRepository() {
+        Map<UUID, List<OrderItem>> itemsMap = Map.of(orderId, List.of(orderItem1, orderItem2));
+
+        OrderDTO result = orderMapper.convertToDTO(order, itemsMap);
+
+        assertNotNull(result);
+        assertEquals(orderId, result.getOrderId());
         assertEquals(2, result.getItems().size());
-        assertEquals(itemId2, result.getItems().get(0).getItemId()); // orderItem2 first
-        assertEquals(itemId1, result.getItems().get(1).getItemId()); // orderItem1 second
+
+        BigDecimal expectedTotal = BigDecimal.valueOf(499.95).add(BigDecimal.valueOf(499.90));
+        assertEquals(0, expectedTotal.compareTo(result.getTotalAmount()));
+
+        // The repository must NOT have been called — no per-order DB query
+        verify(orderItemRepository, never()).findByOrderOrderId(orderId);
     }
 
     @Test
-    void calculateTotal_WithNullSubTotal_HandlesGracefully() {
+    void convertToDTO_WithItemsMap_WhenOrderAbsentFromMap_ReturnsEmptyItemsAndZeroTotal() {
+        // Order ID missing from map simulates an order that has no items yet
+        Map<UUID, List<OrderItem>> emptyMap = Map.of();
+
+        OrderDTO result = orderMapper.convertToDTO(order, emptyMap);
+
+        assertNotNull(result);
+        assertEquals(0,             result.getItems().size());
+        assertEquals(BigDecimal.ZERO, result.getTotalAmount());
+
+        verify(orderItemRepository, never()).findByOrderOrderId(orderId);
+    }
+
+    @Test
+    void convertToDTO_WithItemsMap_PreservesItemOrder() {
+        Map<UUID, List<OrderItem>> itemsMap = Map.of(orderId, List.of(orderItem2, orderItem1));
+
+        OrderDTO result = orderMapper.convertToDTO(order, itemsMap);
+
+        assertEquals(2,      result.getItems().size());
+        assertEquals(itemId2, result.getItems().get(0).getItemId());
+        assertEquals(itemId1, result.getItems().get(1).getItemId());
+    }
+
+    @Test
+    void convertToDTO_WithItemsMap_SingleItem_ComputesCorrectSubtotal() {
+        Map<UUID, List<OrderItem>> itemsMap = Map.of(orderId, List.of(orderItem1));
+
+        OrderDTO result = orderMapper.convertToDTO(order, itemsMap);
+
+        assertEquals(1, result.getItems().size());
+        // 5 units × $99.99 = $499.95
+        assertEquals(0, BigDecimal.valueOf(499.95).compareTo(result.getTotalAmount()));
+    }
+
+    // -------------------------------------------------------------------------
+    // calculateTotal
+    // -------------------------------------------------------------------------
+
+    @Test
+    void calculateTotal_WithItems_ReturnsCorrectSum() {
+        BigDecimal result = orderMapper.calculateTotal(itemDTOs);
+        assertEquals(BigDecimal.valueOf(999.85), result);
+    }
+
+    @Test
+    void calculateTotal_WithEmptyList_ReturnsZero() {
+        BigDecimal result = orderMapper.calculateTotal(List.of());
+        assertEquals(BigDecimal.ZERO, result);
+    }
+
+    @Test
+    void calculateTotal_WithSingleItem_ReturnsItemSubTotal() {
+        List<OrderItemDTO> single = List.of(
+                new OrderItemDTO(itemId1, "Item 1", 5, BigDecimal.valueOf(99.99), BigDecimal.valueOf(499.95))
+        );
+        assertEquals(BigDecimal.valueOf(499.95), orderMapper.calculateTotal(single));
+    }
+
+    @Test
+    void calculateTotal_WithNullSubTotal_ThrowsInvalidOperationException() {
         List<OrderItemDTO> itemsWithNull = List.of(
-                new OrderItemDTO(itemId1, "Item 1", 5, BigDecimal.valueOf(99.99), null),
+                new OrderItemDTO(itemId1, "Item 1", 5,  BigDecimal.valueOf(99.99), null),
                 new OrderItemDTO(itemId2, "Item 2", 10, BigDecimal.valueOf(49.99), BigDecimal.valueOf(499.90))
         );
-
         assertThrows(InvalidOperationException.class, () -> orderMapper.calculateTotal(itemsWithNull));
     }
 }
