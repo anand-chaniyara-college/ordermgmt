@@ -8,32 +8,32 @@ import com.example.ordermgmt.service.impl.order.OrderTransitionHelper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Background scheduler that auto-cancels PENDING orders older than 5 minutes.
- * Each cancellation runs in its own transaction via OrderTransitionHelper.
- */
 @Component
 @RequiredArgsConstructor
 public class OrderAutoCancelScheduler {
 
     private static final Logger logger = LoggerFactory.getLogger(OrderAutoCancelScheduler.class);
-    private static final int STALE_MINUTES = 60;
+
+    @Value("${app.order.stale-minutes}")
+    private int staleMinutes;
+
     private static final String PENDING_STATUS = "PENDING";
 
     private final OrdersRepository ordersRepository;
     private final OrderTransitionHelper transitionHelper;
 
-    @Scheduled(fixedRateString = "${SCHEDULER_FIXED_RATE_MS:300000}")
-    public void cancelStalePendingOrders() {
+    @Scheduled(fixedRateString = "${app.scheduler.fixed-rate-ms}")
+
         logger.info("Processing cancelStalePendingOrders for Scheduler");
 
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(STALE_MINUTES);
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(staleMinutes);
         List<Orders> staleOrders = ordersRepository.findStalePendingOrders(OrderStatus.PENDING.name(), cutoff);
 
         if (staleOrders.isEmpty()) {
@@ -42,7 +42,7 @@ public class OrderAutoCancelScheduler {
         }
 
         logger.info("Found {} stale PENDING orders (older than {} min). Auto-cancelling...",
-                staleOrders.size(), STALE_MINUTES);
+                staleOrders.size(), staleMinutes);
 
         for (Orders order : staleOrders) {
             try {
