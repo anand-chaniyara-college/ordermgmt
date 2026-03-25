@@ -21,8 +21,6 @@ public interface OrdersRepository extends JpaRepository<Orders, UUID> {
 
     Page<Orders> findByCustomerAppUserEmail(String email, Pageable pageable);
 
-//    List<Orders> findByCustomerCustomerId(UUID customerId);
-
     @Query("SELECT o FROM Orders o WHERE o.status.statusName = :statusName AND o.createdTimestamp < :cutoff")
     List<Orders> findStalePendingOrders(@Param("statusName") String statusName,
             @Param("cutoff") LocalDateTime cutoff);
