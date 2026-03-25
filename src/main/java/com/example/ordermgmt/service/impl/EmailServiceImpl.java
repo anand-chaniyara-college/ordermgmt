@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.mail.MessagingException;
+import com.example.ordermgmt.enums.EmailStatus;
 import java.util.UUID;
 import com.example.ordermgmt.security.TenantContextHolder;
 
@@ -23,10 +24,6 @@ import com.example.ordermgmt.security.TenantContextHolder;
 public class EmailServiceImpl implements EmailService {
 
     private static final Logger logger = LoggerFactory.getLogger(EmailServiceImpl.class);
-
-    private static final String STATUS_PENDING = "PENDING";
-    private static final String STATUS_SENT = "SENT";
-    private static final String STATUS_FAILED = "FAILED";
 
     private final JavaMailSender mailSender;
     private final EmailLogRepository emailLogRepository;
@@ -45,11 +42,11 @@ public class EmailServiceImpl implements EmailService {
 
         try {
             sendMimeMessage(to, subject, body);
-            updateLogStatus(emailLog, STATUS_SENT, null);
+            updateLogStatus(emailLog, EmailStatus.SENT, null);
             logger.info("sendEmail completed successfully for User: {}", to);
         } catch (Exception e) {
             logger.error("sendEmail failed for recipient: {}: {}", to, e.getMessage());
-            updateLogStatus(emailLog, STATUS_FAILED, e.getMessage());
+            updateLogStatus(emailLog, EmailStatus.FAILED, e.getMessage());
             throw new EmailSendingException("Failed to send email to " + to, e);
         }
     }
@@ -70,7 +67,7 @@ public class EmailServiceImpl implements EmailService {
         EmailLog emailLog = new EmailLog();
         emailLog.setRecipient(to);
         emailLog.setSubject(subject);
-        emailLog.setStatus(STATUS_PENDING);
+        emailLog.setStatus(EmailStatus.PENDING.name());
 
         return emailLogRepository.save(emailLog);
     }
@@ -90,8 +87,8 @@ public class EmailServiceImpl implements EmailService {
         }
     }
 
-    private void updateLogStatus(EmailLog emailLog, String status, String errorMessage) {
-        emailLog.setStatus(status);
+    private void updateLogStatus(EmailLog emailLog, EmailStatus status, String errorMessage) {
+        emailLog.setStatus(status.name());
         if (errorMessage != null) {
             emailLog.setErrorMessage(errorMessage);
         }
