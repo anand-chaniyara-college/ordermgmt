@@ -29,6 +29,7 @@ public class InventoryItemDTO {
     @Min(value = 0, message = "Available Stock must be zero or positive")
     private Integer availableStock;
 
+    @Schema(accessMode = Schema.AccessMode.READ_ONLY)
     @Min(value = 0, message = "Reserved Stock must be zero or positive")
     private Integer reservedStock;
 }
