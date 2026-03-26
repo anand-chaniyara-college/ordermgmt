@@ -260,37 +260,39 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional
     public void forgotPassword(ForgotPasswordRequestDTO request) {
-        logger.info("Processing forgotPassword for User: {}", request.getEmail());
+        logger.info("Processing forgotPassword for org subdomain: {}", request.getOrgSubdomain());
 
         // 1. Find User by email first to determine the tenant
         AppUser user = appUserRepository.findByEmail(request.getEmail().toLowerCase())
                 .orElseThrow(() -> {
-                    logger.warn("Skipping forgotPassword for User: {} - User not found", request.getEmail());
+                    logger.warn("forgotPassword: no matching account found for org subdomain: {}",
+                            request.getOrgSubdomain());
                     return new ResourceNotFoundException("User not found: " + request.getEmail());
                 });
 
         // 2. Validate user belongs to the requested organization subdomain
         Organization org = organizationRepository.findBySubdomainIgnoreCase(request.getOrgSubdomain())
                 .orElseThrow(() -> {
-                    logger.warn("Skipping forgotPassword for User: {} - Organization not found: {}",
-                            request.getEmail(), request.getOrgSubdomain());
+                    logger.warn("Skipping forgotPassword - Organization not found: {}",
+                            request.getOrgSubdomain());
                     return new ResourceNotFoundException("Organization not found: " + request.getOrgSubdomain());
                 });
 
         if (!org.getOrgId().equals(user.getOrgId())) {
-            logger.warn("Skipping forgotPassword for User: {} - User does not belong to organization: {}",
-                    request.getEmail(), request.getOrgSubdomain());
+            logger.warn("Skipping forgotPassword - No matching account found for org subdomain: {}",
+                    request.getOrgSubdomain());
             throw new ResourceNotFoundException("User not found in organization: " + request.getOrgSubdomain());
         }
 
         if (!Boolean.TRUE.equals(user.getIsActive())) {
-            logger.warn("Skipping forgotPassword for User: {} - Account inactive", request.getEmail());
+            logger.warn("Skipping forgotPassword - Matching account inactive for org subdomain: {}",
+                    request.getOrgSubdomain());
             throw new AccountInactiveException("User is inactive");
         }
 
         if (!Boolean.TRUE.equals(org.getIsActive())) {
-            logger.warn("Skipping forgotPassword for User: {} - Organization inactive: {}",
-                    request.getEmail(), request.getOrgSubdomain());
+            logger.warn("Skipping forgotPassword - Organization inactive: {}",
+                    request.getOrgSubdomain());
             throw new OrganizationInactiveException("Organization is inactive: " + request.getOrgSubdomain());
         }
 
@@ -309,7 +311,7 @@ public class AuthServiceImpl implements AuthService {
                         "name", user.getEmail(),
                         "tempPassword", tempPassword)));
 
-        logger.info("forgotPassword completed successfully for User: {}", request.getEmail());
+        logger.info("forgotPassword completed successfully for org subdomain: {}", request.getOrgSubdomain());
     }
 
     @Override

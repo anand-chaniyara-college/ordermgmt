@@ -138,9 +138,9 @@ public class AuthController {
                     .body(Map.of("message", "Too many requests. Please try again later."));
         }
 
-        logger.info("Processing forgotPassword for User: {}", request.getEmail());
+        logger.info("Processing forgotPassword for org subdomain: {}", request.getOrgSubdomain());
         authService.forgotPassword(request);
-        logger.info("forgotPassword completed successfully for User: {}", request.getEmail());
+        logger.info("forgotPassword completed successfully for org subdomain: {}", request.getOrgSubdomain());
         return ResponseEntity
                 .ok(Map.of("message", "If an account matches, a temporary password has been sent to your email."));
     }
