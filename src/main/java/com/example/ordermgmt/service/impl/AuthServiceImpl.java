@@ -34,8 +34,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -133,17 +133,25 @@ public class AuthServiceImpl implements AuthService {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 request.getEmail(), null,
                 Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
-        Authentication previousAuthentication = SecurityContextHolder.getContext().getAuthentication();
+        SecurityContext previousContext = SecurityContextHolder.getContext();
+        UUID previousTenantId = TenantContextHolder.getTenantId();
 
         try {
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+            SecurityContext registrationContext = SecurityContextHolder.createEmptyContext();
+            registrationContext.setAuthentication(authentication);
+            SecurityContextHolder.setContext(registrationContext);
             TenantContextHolder.setTenantId(org.getOrgId());
             appUserRepository.save(newUser);
 
             createEmptyCustomerProfile(newUser);
         } finally {
-            TenantContextHolder.clear();
-            SecurityContextHolder.getContext().setAuthentication(previousAuthentication);
+            if (previousTenantId != null) {
+                TenantContextHolder.setTenantId(previousTenantId);
+            } else {
+                TenantContextHolder.clear();
+            }
+
+            SecurityContextHolder.setContext(previousContext);
         }
 
         logger.info("registerUser completed successfully for User: {}", request.getEmail());
