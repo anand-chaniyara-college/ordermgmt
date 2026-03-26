@@ -442,7 +442,12 @@ Header: `Authorization: Bearer <ADMIN token>`
 Query params:
 - `orderId` optional UUID (if provided, `page`/`size` are ignored)
 - `page` optional, 0-indexed
-- `size` optional (pagination only when both `page` and `size` are provided)
+- `size` optional
+
+Behavior:
+- If `orderId` is provided, returns that specific order in `{ "orders": [...] }`
+- If both `page` and `size` are provided, returns a paged response
+- If `page` and `size` are omitted, the endpoint applies a default page of `0` and size of `50`, and returns up to 50 orders in `{ "orders": [...] }`
 
 Responses:
 - If `orderId` is provided:
@@ -488,7 +493,7 @@ Responses:
   "empty": false
 }
 ```
-- Otherwise:
+- If `page` and `size` are omitted (default first 50 orders):
 ```json
 {
   "orders": [

@@ -41,7 +41,7 @@ public class AdminOrderController {
     private final OrderService orderService;
 
     @GetMapping
-    @Operation(summary = "View Orders", description = "Get orders. With orderId: returns {\"orders\": [order]}. With page+size: returns paginated Page<OrderDTO>. Otherwise: returns {\"orders\": [...]}. customerId is excluded from responses.")
+    @Operation(summary = "View Orders", description = "Get orders. With orderId: returns {\"orders\": [order]}. With page+size: returns paginated Page<OrderDTO>. Otherwise: returns the first 50 orders as {\"orders\": [...]}. customerId is excluded from responses.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Orders retrieved successfully", content = @Content),
             @ApiResponse(responseCode = "401", description = "Unauthorized access", content = @Content),
@@ -69,10 +69,11 @@ public class AdminOrderController {
             return ResponseEntity.ok(orders);
         }
 
-        logger.info("Processing getAllOrders for Admin");
-        List<OrderDTO> orders = orderService.getAllOrders();
-        logger.info("getAllOrders completed successfully for Admin");
-        return ResponseEntity.ok(Map.of("orders", orders));
+        logger.info("Processing getAllOrders (Default Page) for Admin");
+        Pageable defaultPageable = PageRequest.of(0, 50);
+        Page<OrderDTO> orders = orderService.getAllOrders(defaultPageable);
+        logger.info("getAllOrders (Default Page) completed successfully for Admin");
+        return ResponseEntity.ok(Map.of("orders", orders.getContent()));
     }
 
     @PutMapping("/status")
