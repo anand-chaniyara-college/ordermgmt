@@ -34,6 +34,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -132,16 +133,17 @@ public class AuthServiceImpl implements AuthService {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                 request.getEmail(), null,
                 Collections.singletonList(new SimpleGrantedAuthority(role.getRoleName())));
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+        Authentication previousAuthentication = SecurityContextHolder.getContext().getAuthentication();
 
-        TenantContextHolder.setTenantId(org.getOrgId());
         try {
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            TenantContextHolder.setTenantId(org.getOrgId());
             appUserRepository.save(newUser);
 
             createEmptyCustomerProfile(newUser);
         } finally {
             TenantContextHolder.clear();
-            SecurityContextHolder.clearContext();
+            SecurityContextHolder.getContext().setAuthentication(previousAuthentication);
         }
 
         logger.info("registerUser completed successfully for User: {}", request.getEmail());
