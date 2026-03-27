@@ -28,6 +28,7 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -60,14 +61,16 @@ class AdminOrderControllerTest {
         order1.setOrderId(UUID.randomUUID());
         order1.setStatus("PENDING");
 
-        when(orderService.getAllOrders()).thenReturn(Collections.singletonList(order1));
+        Page<OrderDTO> pageResult = new PageImpl<>(Collections.singletonList(order1), PageRequest.of(0, 50), 1);
+        when(orderService.getAllOrders(any(Pageable.class))).thenReturn(pageResult);
 
         mockMvc.perform(get("/api/admin/orders"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orders").isArray())
                 .andExpect(jsonPath("$.orders[0].status").value("PENDING"));
 
-        verify(orderService, times(1)).getAllOrders();
+        verify(orderService, times(1)).getAllOrders(argThat(pageable ->
+                pageable.getPageNumber() == 0 && pageable.getPageSize() == 50));
     }
 
     @Test
@@ -146,7 +149,7 @@ class AdminOrderControllerTest {
 
     @Test
     void testGetAllOrders_InternalServerError() throws Exception {
-        when(orderService.getAllOrders()).thenThrow(new RuntimeException("DB error"));
+        when(orderService.getAllOrders(any(Pageable.class))).thenThrow(new RuntimeException("DB error"));
 
         mockMvc.perform(get("/api/admin/orders"))
                 .andExpect(status().isInternalServerError());
