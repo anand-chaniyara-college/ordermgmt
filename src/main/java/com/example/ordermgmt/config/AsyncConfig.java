@@ -3,6 +3,7 @@ package com.example.ordermgmt.config;
 import com.example.ordermgmt.security.TenantContextHolder;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.task.TaskDecorator;
@@ -17,9 +18,11 @@ public class AsyncConfig {
     @Bean(name = "taskExecutor")
     public Executor taskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(16);
-        executor.setQueueCapacity(200);
+        executor.setCorePoolSize(300);
+        executor.setMaxPoolSize(600);
+        executor.setQueueCapacity(2400);
+        executor.setKeepAliveSeconds(60);
+        executor.setAllowCoreThreadTimeOut(true);
         executor.setThreadNamePrefix("ordermgmt-async-");
         executor.setTaskDecorator(contextCopyingTaskDecorator());
         executor.initialize();

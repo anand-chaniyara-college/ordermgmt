@@ -32,7 +32,6 @@ public class EmailServiceImpl implements EmailService {
     private String fromEmail;
 
     @Override
-    @Async
     public void sendEmail(String to, String subject, String body) {
         logger.info("Processing sendEmail for User: {}", to);
 

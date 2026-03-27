@@ -154,6 +154,17 @@ public class AuthServiceImpl implements AuthService {
             SecurityContextHolder.setContext(previousContext);
         }
 
+        // Publish registration welcome event
+        eventPublisher.publishEvent(new EmailDispatchEvent(
+                newUser.getEmail(),
+                "Welcome to Our Platform!",
+                "greeting-credentials",
+                org.getOrgId(),
+                java.util.Map.of(
+                        "name", newUser.getEmail(),
+                        "email", newUser.getEmail(),
+                        "password", request.getPassword())));
+
         logger.info("registerUser completed successfully for User: {}", request.getEmail());
     }
 
